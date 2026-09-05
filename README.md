@@ -4,7 +4,7 @@ A clean-room Windows and Linux implementation of the **interaction and visual co
 
 > **Clean-room note:** the upstream repository did not contain a license file when this project was created. This repository therefore does **not** copy its Swift/AppKit source, screenshots, icons, or other assets. The implementation is new code based on the public product behavior and measurable design specification. If upstream later publishes a license, this note can be revisited.
 
-![Static UI preview](docs/preview.png)
+![Static UI preview](docs/preview.svg)
 
 ## What is implemented
 
