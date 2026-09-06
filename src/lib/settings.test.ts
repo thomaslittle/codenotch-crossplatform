@@ -86,7 +86,8 @@ describe("settings", () => {
   });
 
   it("persists every supported shell style and rejects unknown ones", () => {
-    for (const shellStyle of ["tab", "bubble", "sharp", "trapezoid", "pill", "rail", "dock", "ghost"] as const) {
+    const shellStyles = ["tab", "bubble", "sharp", "trapezoid", "pill", "rail", "dock", "ghost"] as const;
+    for (const shellStyle of shellStyles) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellStyle }));
       expect(loadSettings().shellStyle).toBe(shellStyle);
     }
