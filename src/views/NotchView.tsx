@@ -22,7 +22,7 @@ import { checkForUpdates } from "../lib/updates";
 import { bandFor, resolveSurface, themeVars, useSystemLight } from "../lib/theme";
 import { clamp01, formatPercent, headlineWindow } from "../lib/usage";
 import { ProviderLogo } from "../components/ProviderLogo";
-import type { Edge, GaugeStyle, LimitWindow, ProviderSnapshot } from "../types";
+import type { Edge, GaugeStyle, LimitWindow, ProviderSnapshot, ShellStyle } from "../types";
 
 const ringSize = 44;
 const classicTrackStroke = 5.8;
@@ -32,6 +32,21 @@ const classicCircumference = 2 * Math.PI * classicRadius;
 
 function isCompactGauge(style: GaugeStyle): boolean {
   return style === "stacked" || style === "columns" || style === "micro";
+}
+
+function isDockShell(style: ShellStyle): boolean {
+  return style === "dock" || style === "dock3d";
+}
+
+function shellDepth(style: ShellStyle, edge: Edge, compact: boolean): number {
+  const side = edge === "right" || edge === "left";
+  if (style === "dock3d") {
+    return side ? (compact ? 80 : 84) : (compact ? 90 : 96);
+  }
+  if (style === "dock" || style === "rail") {
+    return side ? (compact ? 70 : 74) : (compact ? 80 : 86);
+  }
+  return side ? 70 : 84;
 }
 
 function compactLabel(window: LimitWindow): string {
@@ -269,6 +284,7 @@ function ProviderCell({
   edge,
   surface,
   gaugeStyle,
+  shellStyle,
   onHover,
   onLeave,
 }: {
@@ -277,6 +293,7 @@ function ProviderCell({
   edge: Edge;
   surface: string;
   gaugeStyle: GaugeStyle;
+  shellStyle: ShellStyle;
   onHover: (snapshot: ProviderSnapshot, index: number) => void;
   onLeave: () => void;
 }) {
@@ -306,7 +323,7 @@ function ProviderCell({
       initial={{ opacity: 0, scale: 0.8, ...slide }}
       animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
       exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.15 } }}
-      whileHover={{ scale: 1.07 }}
+      whileHover={{ scale: isDockShell(shellStyle) ? 1 : 1.07 }}
       whileTap={{ scale: 0.94 }}
       transition={{ type: "spring", stiffness: 420, damping: 26, delay: Math.min(index * 0.05, 0.25) }}
     >
@@ -351,6 +368,7 @@ export function NotchView() {
   const tipRef = useRef<{ id: string; at: number } | null>(null);
   const edge = settings.edge;
   const compactGauge = isCompactGauge(settings.gaugeStyle);
+  const dockShell = isDockShell(settings.shellStyle);
 
   const enabled = useMemo(
     () => snapshots.filter((item) => settings.enabledProviders.includes(item.id)),
@@ -434,9 +452,10 @@ export function NotchView() {
         settings.offsetX,
         settings.offsetY,
         compactGauge,
+        settings.shellStyle,
       );
     })();
-  }, [cancelAutoHide, compactGauge, edge, enabled.length, settings.scale, settings.monitor, settings.offsetX, settings.offsetY]);
+  }, [cancelAutoHide, compactGauge, edge, enabled.length, settings.scale, settings.monitor, settings.offsetX, settings.offsetY, settings.shellStyle]);
 
   useEffect(() => {
     if (!settings.autoHide && retracted) void peek();
@@ -500,7 +519,7 @@ export function NotchView() {
     if (runningInTauri()) {
       void emitTo("tooltip", "tooltip:show", { snapshot, edge, index });
     }
-    void showTooltip(edge, index, settings.scale, compactGauge).catch(() => {
+    void showTooltip(edge, index, settings.scale, compactGauge, settings.shellStyle).catch(() => {
       tipRef.current = null;
     });
   };
@@ -511,11 +530,13 @@ export function NotchView() {
     : edge === "top" ? { x: 0, y: -36 }
     : { x: 0, y: 36 };
 
+  const depth = shellDepth(settings.shellStyle, edge, compactGauge);
+  const hideDistance = Math.max(depth - 6, 0);
   const hideOffset =
-    edge === "right" ? { x: 64, y: 0 }
-    : edge === "left" ? { x: -64, y: 0 }
-    : edge === "top" ? { x: 0, y: -78 }
-    : { x: 0, y: 78 };
+    edge === "right" ? { x: hideDistance, y: 0 }
+    : edge === "left" ? { x: -hideDistance, y: 0 }
+    : edge === "top" ? { x: 0, y: -hideDistance }
+    : { x: 0, y: hideDistance };
   const animationGen = retractGen.current;
 
   const handleShellContextMenu = (event: MouseEvent<HTMLElement>) => {
@@ -562,14 +583,14 @@ export function NotchView() {
         <button className="settings-orb empty" type="button" onClick={() => void openSettings()} aria-label="Settings">
           <svg className="orb-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z" />
           </svg>
         </button>
       </motion.main>
     );
   }
 
-  const stackStyle: CSSProperties | undefined = compactGauge
+  const stackStyle: CSSProperties | undefined = compactGauge && !dockShell
     ? (edge === "right" || edge === "left"
       ? { gap: 12, padding: "16px 11px 14px" }
       : { gap: 12, padding: "7px 14px 8px 16px" })
@@ -577,7 +598,7 @@ export function NotchView() {
 
   return (
     <motion.main {...shellMotionProps}>
-      <div key={`${edge}-${enabled.length}-${settings.gaugeStyle}`} className="provider-stack" style={stackStyle}>
+      <div key={`${edge}-${enabled.length}-${settings.gaugeStyle}-${settings.shellStyle}`} className="provider-stack" style={stackStyle}>
         {enabled.map((snapshot, index) => (
           <ProviderCell
             key={snapshot.id}
@@ -586,6 +607,7 @@ export function NotchView() {
             edge={edge}
             surface={surface}
             gaugeStyle={settings.gaugeStyle}
+            shellStyle={settings.shellStyle}
             onHover={hover}
             onLeave={leave}
           />
@@ -595,7 +617,7 @@ export function NotchView() {
         {updateAvailable && <span className="orb-update" aria-label="Update available" />}
         <svg className="orb-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v-.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z" />
         </svg>
       </button>
     </motion.main>
