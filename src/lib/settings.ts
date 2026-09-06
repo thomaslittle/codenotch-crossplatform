@@ -38,8 +38,6 @@ export function loadSettings(): ClientSettings {
     const gaugeStyle = isGaugeStyle(parsed.gaugeStyle) ? parsed.gaugeStyle : DEFAULT_SETTINGS.gaugeStyle;
     const mode = isThemeMode(parsed.mode) ? parsed.mode : DEFAULT_SETTINGS.mode;
     let surface = isSurface(parsed.surface) ? parsed.surface : DEFAULT_SETTINGS.surface;
-    // Old builds stored these exact names in `theme`; preserve their original
-    // surfaces when loading that payload, while `custom` keeps freeform color.
     if (theme !== "custom") {
       surface = getThemePreset(theme).surface;
     }
@@ -79,5 +77,10 @@ function isEdge(value: unknown): value is Edge {
 }
 
 function isGaugeStyle(value: unknown): value is GaugeStyle {
-  return value === "classic" || value === "slim" || value === "halo";
+  return value === "classic"
+    || value === "slim"
+    || value === "halo"
+    || value === "stacked"
+    || value === "columns"
+    || value === "micro";
 }
