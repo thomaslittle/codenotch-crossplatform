@@ -27,13 +27,14 @@ fn set_edge(
     monitor: String,
     offset_x: f64,
     offset_y: f64,
+    compact: bool,
 ) -> Result<(), String> {
-    windows::place_notch(&app, edge, provider_count, scale, &monitor, offset_x, offset_y)
+    windows::place_notch(&app, edge, provider_count, scale, &monitor, offset_x, offset_y, compact)
 }
 
 #[tauri::command]
-fn show_tooltip(app: tauri::AppHandle, edge: Edge, index: usize, scale: f64) -> Result<(), String> {
-    windows::place_tooltip(&app, edge, index, scale).map_err(|error| {
+fn show_tooltip(app: tauri::AppHandle, edge: Edge, index: usize, scale: f64, compact: bool) -> Result<(), String> {
+    windows::place_tooltip(&app, edge, index, scale, compact).map_err(|error| {
         eprintln!("[codenotch] show_tooltip failed (edge={edge:?}, index={index}): {error}");
         error
     })
@@ -168,7 +169,7 @@ pub fn run() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_millis(120)).await;
-                let _ = windows::place_notch(&handle, Edge::Right, 5, 1.0, "primary", 0.0, 0.0);
+                let _ = windows::place_notch(&handle, Edge::Right, 5, 1.0, "primary", 0.0, 0.0, false);
             });
             Ok(())
         })
