@@ -86,7 +86,7 @@ describe("settings", () => {
   });
 
   it("persists every supported shell style and rejects unknown ones", () => {
-    const shellStyles = ["tab", "bubble", "sharp", "trapezoid", "pill", "rail", "dock", "ghost"] as const;
+    const shellStyles = ["tab", "bubble", "sharp", "trapezoid", "pill", "dock", "dock3d", "ghost"] as const;
     for (const shellStyle of shellStyles) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellStyle }));
       expect(loadSettings().shellStyle).toBe(shellStyle);
@@ -94,6 +94,11 @@ describe("settings", () => {
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellStyle: "glass" }));
     expect(loadSettings().shellStyle).toBe("tab");
+  });
+
+  it("migrates the retired rail shell to glass dock", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellStyle: "rail" }));
+    expect(loadSettings().shellStyle).toBe("dock");
   });
 
   it("persists every supported gauge style and rejects unknown ones", () => {
