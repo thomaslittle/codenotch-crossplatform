@@ -15,7 +15,7 @@ const actions = [
 export function ContextMenuView() {
   const [settings, setSettings] = useState(loadSettings);
   const sysLight = useSystemLight();
-  const surface = resolveSurface(settings.mode, settings.surface, sysLight);
+  const surface = resolveSurface(settings.mode, settings.surface, sysLight, settings.theme);
 
   useEffect(() => {
     if (!runningInTauri()) return;
