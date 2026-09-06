@@ -99,6 +99,7 @@ function isShellStyle(value: unknown): value is ShellStyle {
     || value === "trapezoid"
     || value === "pill"
     || value === "rail"
+    || value === "dock"
     || value === "ghost";
 }
 
