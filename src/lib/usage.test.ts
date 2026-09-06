@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatPercent, headlineWindow, usageBand } from "./usage";
+import { availabilityBand, formatPercent, headlineWindow, remainingFraction, usageBand } from "./usage";
 import type { ProviderSnapshot } from "../types";
 
 describe("usage bands", () => {
@@ -9,6 +9,16 @@ describe("usage bands", () => {
     expect(usageBand(0.73)).toBe("watch");
     expect(usageBand(0.8)).toBe("critical");
     expect(usageBand(1)).toBe("exhausted");
+  });
+
+  it("maps remaining quota from healthy green to depleted red", () => {
+    expect(remainingFraction(0)).toBe(1);
+    expect(remainingFraction(0.25)).toBe(0.75);
+    expect(remainingFraction(1)).toBe(0);
+    expect(availabilityBand(1)).toBe("ample");
+    expect(availabilityBand(0.5)).toBe("watch");
+    expect(availabilityBand(0.2)).toBe("critical");
+    expect(availabilityBand(0)).toBe("exhausted");
   });
 });
 
