@@ -15,14 +15,13 @@ const LEGACY_THEMES: Record<string, string> = {
 export const DEFAULT_SETTINGS: ClientSettings = {
   edge: "right",
   enabledProviders: ["claude", "cursor", "codex", "gemini", "opencode"],
-  mode: "dark",
+  mode: "system",
   surface: "#000000",
   opacity: 1,
   scale: 1,
   offsetX: 0,
   offsetY: 0,
   monitor: "primary",
-  blur: false,
 };
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
@@ -45,13 +44,12 @@ export function loadSettings(): ClientSettings {
     if (typeof parsed.theme === "string" && LEGACY_THEMES[parsed.theme]) {
       surface = LEGACY_THEMES[parsed.theme];
     }
-    const opacity = clampNumber(parsed.opacity, 0.4, 1, DEFAULT_SETTINGS.opacity);
+    const opacity = clampNumber(parsed.opacity, 0, 1, DEFAULT_SETTINGS.opacity);
     const scale = clampNumber(parsed.scale, 0.7, 1.3, DEFAULT_SETTINGS.scale);
     const offsetX = clampNumber(parsed.offsetX, -200, 200, DEFAULT_SETTINGS.offsetX);
     const offsetY = clampNumber(parsed.offsetY, -200, 200, DEFAULT_SETTINGS.offsetY);
     const monitor = typeof parsed.monitor === "string" && parsed.monitor ? parsed.monitor : DEFAULT_SETTINGS.monitor;
-    const blur = parsed.blur === true;
-    return { edge, enabledProviders, mode, surface, opacity, scale, offsetX, offsetY, monitor, blur };
+    return { edge, enabledProviders, mode, surface, opacity, scale, offsetX, offsetY, monitor };
   } catch {
     return DEFAULT_SETTINGS;
   }

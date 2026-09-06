@@ -24,12 +24,35 @@ export async function setEdge(
   offsetY: number,
 ): Promise<void> {
   if (!runningInTauri()) return;
-  await invoke("set_edge", { edge, providerCount, scale, monitor, offsetX, offsetY });
+  await throttledInvoke("set_edge", { edge, providerCount, scale, monitor, offsetX, offsetY });
 }
 
-export async function setBlur(enabled: boolean): Promise<void> {
-  if (!runningInTauri()) return;
-  await invoke("set_blur", { enabled }).catch(() => undefined);
+// Window placement invokes are throttled (leading + trailing): slider drags
+// fire dozens per second and every window move costs a full repaint.
+let edgeTimer: ReturnType<typeof setTimeout> | null = null;
+let edgeLeadingAt = 0;
+let edgePending: Record<string, unknown> | null = null;
+
+function throttledInvoke(command: string, args: Record<string, unknown>): Promise<void> {
+  const now = Date.now();
+  edgePending = args;
+  if (now - edgeLeadingAt > 64) {
+    edgeLeadingAt = now;
+    if (edgeTimer != null) {
+      clearTimeout(edgeTimer);
+      edgeTimer = null;
+    }
+    return invoke(command, edgePending).then(() => undefined);
+  }
+  if (edgeTimer == null) {
+    edgeTimer = setTimeout(() => {
+      edgeTimer = null;
+      edgeLeadingAt = Date.now();
+      const latest = edgePending;
+      if (latest) void invoke(command, latest).catch(() => undefined);
+    }, 64);
+  }
+  return Promise.resolve();
 }
 
 export async function listMonitors(): Promise<MonitorInfo[]> {
@@ -64,8 +87,7 @@ export async function hideTooltip(): Promise<void> {
  * Is the OS cursor inside the notch or tooltip window? `null` means unknown
  * (caller keeps the plain timeout behavior).
  */
-export async function cursorOverTooltipArea(): Promise<boolean | null> {
-  if (!runningInTauri()) return null;
+export async function cursorOverTooltipArea(): Promise<boolean | null> {  if (!runningInTauri()) return null;
   try {
     return await invoke<boolean | null>("cursor_over_tooltip_area");
   } catch {
@@ -93,6 +115,22 @@ export async function appAction(
 ): Promise<void> {
   if (!runningInTauri()) return;
   await invoke("app_action", { action });
+}
+
+export const REPO_URL = "https://github.com/thomaslittle/codenotch-crossplatform";
+
+/** Temporary hover diagnostic (removed once the no-popover fault is found). */
+export async function trace(msg: string): Promise<void> {
+  if (!runningInTauri()) return;
+  await invoke("trace", { msg }).catch(() => undefined);
+}
+
+export async function openExternal(url: string): Promise<void> {
+  if (!runningInTauri()) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  await invoke("open_url", { url });
 }
 
 export async function openProvider(snapshot: ProviderSnapshot): Promise<void> {

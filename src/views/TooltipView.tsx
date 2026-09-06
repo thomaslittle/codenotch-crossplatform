@@ -40,7 +40,7 @@ export function TooltipView() {
   return (
     <main
       className={`tooltip-stage tooltip-${edge}`}
-      style={themeVars(surface, settings.opacity)}
+      style={themeVars(surface)}
       onMouseEnter={() => runningInTauri() && void emitTo("notch", "tooltip:hover")}
       onMouseLeave={() => runningInTauri() && void emitTo("notch", "tooltip:leave")}
     >
@@ -54,6 +54,9 @@ export function TooltipView() {
           exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.12 } }}
           transition={{ type: "spring", stiffness: 480, damping: 30 }}
         >
+        <svg className="card-pointer" viewBox="0 0 28 32" aria-hidden="true">
+          <path d="M1 2 Q14 8 27 16 Q14 24 1 30 Z" />
+        </svg>
         <header className="card-header">
           <span className="card-glyph"><ProviderLogo id={snapshot.id} glyph={snapshot.glyph} size={15} /></span>
           <strong>{snapshot.displayName} Usage</strong>

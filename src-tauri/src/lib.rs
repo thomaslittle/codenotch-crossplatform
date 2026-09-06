@@ -47,19 +47,24 @@ fn cursor_over_tooltip_area(app: tauri::AppHandle) -> Result<Option<bool>, Strin
     Ok(windows::cursor_inside_notch_or_tooltip(&app))
 }
 
+/// Temporary hover diagnostic (removed once the no-popover fault is found).
+#[tauri::command]
+fn trace(msg: String) {
+    eprintln!("[codenotch] trace {msg}");
+}
+
 #[tauri::command]
 fn list_monitors(app: tauri::AppHandle) -> Result<Vec<windows::MonitorInfo>, String> {
     windows::list_monitors(&app)
 }
 
 #[tauri::command]
-fn set_blur(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
-    windows::set_notch_blur(&app, enabled)
-}
-
-#[tauri::command]
 fn fit_settings(app: tauri::AppHandle, height: f64) -> Result<(), String> {
-    windows::fit_settings(&app, height)
+    eprintln!("[codenotch] fit_settings req={height}");
+    windows::fit_settings(&app, height).map_err(|error| {
+        eprintln!("[codenotch] fit_settings failed (height={height}): {error}");
+        error
+    })
 }
 
 #[tauri::command]
@@ -74,7 +79,7 @@ fn show_context_menu(app: tauri::AppHandle, edge: Edge, scale: f64) -> Result<()
 
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
-    const ALLOWED: [&str; 5] = ["https://claude.ai/", "https://cursor.com/", "https://chatgpt.com/", "https://antigravity.google/", "https://opencode.ai/"];
+    const ALLOWED: [&str; 6] = ["https://claude.ai/", "https://cursor.com/", "https://chatgpt.com/", "https://antigravity.google/", "https://opencode.ai/", "https://github.com/thomaslittle/codenotch-crossplatform"];
     if !ALLOWED.iter().any(|prefix| url.starts_with(prefix)) {
         return Err("URL is not an allowed provider destination".into());
     }
@@ -116,7 +121,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_snapshots, set_edge, show_tooltip, hide_window, open_settings,
             show_context_menu, app_action, open_url, cursor_over_tooltip_area,
-            list_monitors, set_blur, fit_settings
+            list_monitors, fit_settings, trace
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {

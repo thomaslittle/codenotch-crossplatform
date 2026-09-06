@@ -37,11 +37,6 @@ function mix(a: string, b: string, t: number): string {
   return `#${cc.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
 
-function withAlpha(hex: string, alpha: number): string {
-  const [r, g, b] = channels(hex);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
 /** Text color guaranteed readable on the surface. */
 export function surfaceText(surface: string): string {
   return surfaceLuminance(surface) > 0.5 ? "#141518" : "#ffffff";
@@ -85,17 +80,18 @@ export function resolveSurface(mode: ThemeMode, surface: string, systemLight: bo
 }
 
 /**
- * CSS variables consumed by styles.css. Surfaces honor opacity; everything
- * else stays solid. Text and bands auto-contrast against the surface so any
- * picker color stays readable.
+ * CSS variables consumed by styles.css. Surfaces are always solid here —
+ * translucency comes from the element-level `opacity` style so the whole
+ * notch (rings, glyphs, labels) fades together down to fully invisible.
+ * Text and bands auto-contrast against the surface so any picker color
+ * stays readable.
  */
-export function themeVars(surface: string, opacity: number): CSSProperties {
+export function themeVars(surface: string): CSSProperties {
   const base = isSurface(surface) ? surface : DARK_SURFACE;
   const text = surfaceText(base);
-  const alpha = Math.min(1, Math.max(0.4, opacity));
   return {
-    "--black": withAlpha(base, alpha),
-    "--card": withAlpha(base, alpha),
+    "--black": base,
+    "--card": base,
     "--track": mix(base, text, 0.2),
     "--bar-track": mix(base, text, 0.18),
     "--settings-bg": base,

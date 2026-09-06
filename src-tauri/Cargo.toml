@@ -1,6 +1,6 @@
 [package]
 name = "codenotch-crossplatform"
-version = "0.1.0"
+version = "0.2.0"
 description = "Cross-platform edge usage notch for coding assistants"
 authors = ["Thomas"]
 edition = "2021"

@@ -1,9 +1,10 @@
 import { emitTo } from "@tauri-apps/api/event";
 import { motion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { fitSettings, getSnapshots, hideWindow, listMonitors, runningInTauri } from "../lib/backend";
-import { loadSettings, saveSettings } from "../lib/settings";
-import { resolveSurface, surfaceLuminance, themeVars, useSystemLight } from "../lib/theme";
+import { REPO_URL, fitSettings, getSnapshots, hideWindow, listMonitors, openExternal, runningInTauri } from "../lib/backend";
+import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "../lib/settings";
+import { DARK_SURFACE, LIGHT_SURFACE, surfaceLuminance, themeVars, useSystemLight } from "../lib/theme";
+import { checkForUpdates, type UpdateInfo } from "../lib/updates";
 import { ProviderLogo } from "../components/ProviderLogo";
 import type { ClientSettings, Edge, MonitorInfo, ProviderSnapshot, ThemeMode } from "../types";
 
@@ -20,13 +21,47 @@ export function SettingsView() {
   const [snapshots, setSnapshots] = useState<ProviderSnapshot[]>([]);
   const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
   const sysLight = useSystemLight();
-  const surface = resolveSurface(settings.mode, settings.surface, sysLight);
+  const activeMonitor = monitors.find((m) => m.id === settings.monitor)
+    ?? monitors.find((m) => m.primary)
+    ?? monitors[0];
+  // Nudge range follows the real screen so the notch can travel edge to
+  // edge. `window.screen` is always available (even if the monitor list
+  // hasn't loaded); the detected monitor wins when present.
+  const screenW = activeMonitor?.width ?? window.screen.availWidth;
+  const screenH = activeMonitor?.height ?? window.screen.availHeight;
+  const boundX = Math.max(100, Math.round(screenW / 2 / 10) * 10);
+  const boundY = Math.max(100, Math.round(screenH / 2 / 10) * 10);
+  // The settings panel never wears the custom surface: solid chrome that
+  // follows the mode (dark / light / OS) instead.
+  const chrome = settings.mode === "light" || (settings.mode === "system" && sysLight)
+    ? "#f2f3f5"
+    : "#090909";
   const lastFit = useRef(0);
 
   useEffect(() => { void getSnapshots().then(setSnapshots).catch(() => undefined); }, []);
   useEffect(() => { void listMonitors().then(setMonitors).catch(() => undefined); }, []);
 
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(true);
+  useEffect(() => {
+    let live = true;
+    setCheckingUpdate(true);
+    checkForUpdates()
+      .then((info) => { if (live) { setUpdateInfo(info); setCheckingUpdate(false); } })
+      .catch(() => { if (live) setCheckingUpdate(false); });
+    return () => { live = false; };
+  }, []);
+  const recheckUpdates = () => {
+    setCheckingUpdate(true);
+    checkForUpdates(true)
+      .then((info) => { setUpdateInfo(info); setCheckingUpdate(false); })
+      .catch(() => setCheckingUpdate(false));
+  };
+
   // Measure content and size the window to fit it: no scrolling, no clipping.
+  // Reports on mount, on viewport changes, whenever data arrives, AND on a
+  // 1s poll — ResizeObserver alone can't see content growth inside a fixed
+  // element, and late layout (fonts, images) can shift heights after mount.
   useLayoutEffect(() => {
     const el = document.querySelector(".settings-page");
     if (!(el instanceof HTMLElement)) return;
@@ -40,8 +75,13 @@ export function SettingsView() {
     report();
     const observer = new ResizeObserver(report);
     observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+    const poll = window.setInterval(report, 1000);
+    return () => {
+      observer.disconnect();
+      window.clearInterval(poll);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshots.length, monitors.length]);
 
   const update = (next: ClientSettings) => {
     setSettings(next);
@@ -50,7 +90,7 @@ export function SettingsView() {
   };
 
   return (
-    <main className="settings-page" style={themeVars(surface, 1)}>
+    <main className="settings-page" style={themeVars(chrome)}>
       <motion.header
         className="settings-header"
         {...rise}
@@ -79,7 +119,7 @@ export function SettingsView() {
               key={edge}
               type="button"
               className={settings.edge === edge ? "is-selected" : ""}
-              onClick={() => update({ ...settings, edge })}
+              onClick={() => update({ ...settings, edge, offsetX: 0, offsetY: 0 })}
               whileTap={{ scale: 0.95 }}
               transition={{ type: "spring", stiffness: 500, damping: 25 }}
             >{edge}</motion.button>
@@ -138,8 +178,8 @@ export function SettingsView() {
             <input
               type="range"
               className="opacity-slider"
-              min={-200}
-              max={200}
+              min={-boundX}
+              max={boundX}
               step={5}
               value={Math.round(settings.offsetX)}
               aria-label="Horizontal offset"
@@ -151,8 +191,8 @@ export function SettingsView() {
             <input
               type="range"
               className="opacity-slider"
-              min={-200}
-              max={200}
+              min={-boundY}
+              max={boundY}
               step={5}
               value={Math.round(settings.offsetY)}
               aria-label="Vertical offset"
@@ -160,34 +200,21 @@ export function SettingsView() {
             />
           </div>
         </div>
-        <div className="appearance-duo">
-          <div>
-            <p className="appearance-label">Monitor</p>
-            <select
-              className="monitor-select"
-              value={monitors.some((m) => m.id === settings.monitor) ? settings.monitor : "primary"}
-              aria-label="Monitor"
-              onChange={(event) => update({ ...settings, monitor: event.target.value })}
-            >
-              <option value="primary">Primary</option>
-              {monitors.filter((m) => !m.primary).map((m) => (
-                <option key={m.id} value={m.id}>
-                  {(m.name ?? `Display ${Number(m.id) + 1}`) + ` · ${Math.round(m.width)}×${Math.round(m.height)}`}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <p className="appearance-label">Background blur</p>
-            <label className="mini-toggle">
-              <input
-                type="checkbox"
-                checked={settings.blur}
-                onChange={(event) => update({ ...settings, blur: event.target.checked })}
-              />
-              <span>{settings.blur ? "Frosted glass on" : "Solid background"}</span>
-            </label>
-          </div>
+        <div className="monitor-row">
+          <p className="appearance-label">Monitor</p>
+          <select
+            className="monitor-select"
+            value={monitors.some((m) => m.id === settings.monitor) ? settings.monitor : "primary"}
+            aria-label="Monitor"
+            onChange={(event) => update({ ...settings, monitor: event.target.value })}
+          >
+            <option value="primary">Primary</option>
+            {monitors.filter((m) => !m.primary).map((m) => (
+              <option key={m.id} value={m.id}>
+                {(m.name ?? `Display ${Number(m.id) + 1}`) + ` · ${Math.round(m.width)}×${Math.round(m.height)}`}
+              </option>
+            ))}
+          </select>
         </div>
       </motion.section>
 
@@ -206,7 +233,13 @@ export function SettingsView() {
                   key={mode}
                   type="button"
                   className={settings.mode === mode ? "is-selected" : ""}
-                  onClick={() => update({ ...settings, mode })}
+                  onClick={() => update({
+                    ...settings,
+                    mode,
+                    // Modes own their surface: picking one resets any custom
+                    // color so dark/light/system always look intentional.
+                    ...(mode === "system" ? {} : { surface: mode === "light" ? LIGHT_SURFACE : DARK_SURFACE }),
+                  })}
                   whileTap={{ scale: 0.95 }}
                   transition={{ type: "spring", stiffness: 500, damping: 25 }}
                 >{mode}</motion.button>
@@ -240,7 +273,7 @@ export function SettingsView() {
               <input
                 type="range"
                 className="opacity-slider"
-                min={40}
+                min={0}
                 max={100}
                 step={1}
                 value={Math.round(settings.opacity * 100)}
@@ -265,6 +298,37 @@ export function SettingsView() {
       </motion.section>
 
       <motion.section
+        className="settings-section"
+        {...rise}
+        transition={{ duration: 0.25, delay: 0.18, ease: "easeOut" }}
+      >
+        <h2>Updates</h2>
+        <div className={`update-row${updateInfo?.available ? " is-available" : ""}`}>
+          <span className={`update-dot${updateInfo?.available ? " is-available" : checkingUpdate ? " is-checking" : ""}`} aria-hidden="true" />
+          <span className="update-copy">
+            {checkingUpdate
+              ? "Checking for updates…"
+              : updateInfo?.available
+                ? `Version ${updateInfo.latest} is out — you're on ${updateInfo.current}`
+                : updateInfo
+                  ? `You're up to date (${updateInfo.current})`
+                  : "Couldn't reach GitHub just now"}
+          </span>
+          {updateInfo?.available
+            ? (
+              <button type="button" className="download-button" onClick={() => void openExternal(updateInfo.url)}>
+                Download
+              </button>
+              )
+            : (
+              <button type="button" className="reset-link" onClick={recheckUpdates} disabled={checkingUpdate}>
+                Check again
+              </button>
+              )}
+        </div>
+      </motion.section>
+
+      <motion.section
         className="settings-section source-note"
         {...rise}
         transition={{ duration: 0.25, delay: 0.2, ease: "easeOut" }}
@@ -272,7 +336,17 @@ export function SettingsView() {
         <h2>How readings work</h2>
         <p>Codex reads local rollout logs. Cursor uses its local state database. Claude uses Claude Code&apos;s OAuth credential. OpenCode polls Zen usage with your saved API key. Antigravity reads its OS-keyring login. This app never writes provider credentials.</p>
       </motion.section>
-      <footer className="settings-footer">Windows + Linux clean-room port · v0.1.0</footer>
+      <footer className="settings-footer">
+        <span>Windows + Linux clean-room port · v0.2.0</span>
+        <span className="footer-links">
+          <button type="button" className="reset-link" onClick={() => void openExternal(REPO_URL)}>
+            GitHub
+          </button>
+          <button type="button" className="reset-link" onClick={() => update({ ...DEFAULT_SETTINGS })}>
+            Reset to defaults
+          </button>
+        </span>
+      </footer>
     </main>
   );
 }

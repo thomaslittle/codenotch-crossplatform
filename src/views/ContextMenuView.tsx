@@ -27,9 +27,9 @@ export function ContextMenuView() {
   return (
     <motion.main
       className="context-menu"
-      style={themeVars(surface, settings.opacity)}
-      initial={{ opacity: 0, scale: 0.95, y: -4 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
+      style={{ ...themeVars(surface), opacity: settings.opacity }}
+      initial={{ scale: 0.95, y: -4 }}
+      animate={{ scale: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 500, damping: 32 }}
     >
       {actions.map(([action, label]) => (

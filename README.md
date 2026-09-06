@@ -14,8 +14,10 @@ A Windows and Linux port of the **interaction and visual concept** from [vinzdg/
 
 Grab the latest build from the [**Releases page**](https://github.com/thomaslittle/codenotch-crossplatform/releases):
 
-- **Windows:** `Codenotch_0.1.0_x64-setup.exe` (installer, Windows 10/11 + WebView2)
+- **Windows:** `Codenotch_*_x64-setup.exe` installer (Windows 10/11 + WebView2)
 - **Linux:** `.AppImage` (portable) or `.deb` (Debian/Ubuntu)
+
+The app also checks GitHub releases on launch and tells you right in Settings (plus a green dot on the settings orb) when a new version is out, with a one-click download button.
 
 > **Linux testers wanted:** this has only ever run on Windows so far. If you're on Linux, please try a release and [open an issue](https://github.com/thomaslittle/codenotch-crossplatform/issues) with whatever breaks — desktop environment, distro, and logs included.
 
@@ -25,15 +27,23 @@ This is **MIT licensed and free forever** — use it, fork it, rip pieces out of
 
 ![Static UI preview](docs/preview.svg)
 
+![Running on Windows](docs/screenshot.png)
+
+## What we added on top
+
+We got creative with the original idea and kept building: a fifth provider (**OpenCode Zen**), a full theming engine (**dark / light / system** plus any custom surface color with auto-contrast text), notch **opacity**, **scaling**, screen-edge **nudges** with per-monitor placement, springy motion throughout, an in-app **update checker**, a dev mode that reads your real local usage (never demo numbers), and honest `stale`/`needsAuth` statuses instead of invented percentages. If you think of more customization, open a PR.
+
 ## What is implemented
 
 - Windows 10/11 and Linux desktop shell using **Tauri 2 + Rust + React/TypeScript**.
 - The same core visual language: black edge notch, 44px provider rings, used-percent labels, green/yellow/orange usage bands, hover detail card, provider reset windows, and a settings orb.
-- Placement on the **right, left, top, or bottom** edge.
+- Placement on the **right, left, top, or bottom** edge of any monitor, with X/Y nudge, per-monitor choice, and notch scaling (70–130%).
 - Separate notch, tooltip, context-menu, and settings windows so transparent desktop areas do not swallow pointer input.
 - Always-on-top, frameless, taskbar-hidden notch behavior.
 - Provider adapters for **Claude Code, Cursor, Codex, Antigravity, and OpenCode Zen**.
-- Themeable notch (dark / light / system + any custom surface color with auto-contrast text), adjustable opacity and notch scale, springy motion throughout, and honest statuses instead of invented numbers.
+- Themeable notch: **dark / light / system** modes plus any custom surface color (text auto-contrasts), adjustable opacity, springy motion throughout, and honest statuses instead of invented numbers.
+- Hover detail card with your real limit windows and reset times; the pointer is part of the card so it never seams or flashes.
+- Settings panel that sizes itself to fit its content (never scrolls, never clips) and drags by its header; one-click reset to defaults.
 - 60-second refresh cadence with a local last-good snapshot cache. If a provider temporarily fails, the previous reading is marked stale instead of disappearing.
 - Right-click menu: Settings, Refresh now, Hide for 1 hour, Quit.
 - Browser dev mode (`npm run dev`) serves the same real local readings through a Vite `/api/snapshots` bridge (`scripts/dev-snapshots.mjs`), so no demo numbers are ever shown. Anything unreadable comes back with an honest status instead.

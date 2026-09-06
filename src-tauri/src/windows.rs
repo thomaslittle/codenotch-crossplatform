@@ -6,7 +6,7 @@ use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Position, Size};
 pub enum Edge { Right, Left, Top, Bottom }
 
 const SIDE_DEPTH: f64 = 70.0;
-const HORIZONTAL_DEPTH: f64 = 70.0;
+const HORIZONTAL_DEPTH: f64 = 84.0;
 const CURL: f64 = 39.0;
 const RING: f64 = 44.0;
 const CELL: f64 = 70.0;
@@ -137,9 +137,16 @@ pub fn place_notch(
             (w, horizontal_depth, mx + (mw - w) / 2.0, my + mh - horizontal_depth)
         }
     };
-    // User nudge, then clamp so at least a grabbable strip stays on-screen.
-    x = (x + offset_x.clamp(-400.0, 400.0)).clamp(mx - w + 80.0, mx + mw - 80.0);
-    y = (y + offset_y.clamp(-400.0, 400.0)).clamp(my - h + 80.0, my + mh - 80.0);
+    // User nudge, then clamp so the window always keeps a grabbable strip
+    // on-screen. The margin shrinks for narrow windows so an edge-docked
+    // notch still sits perfectly flush at any scale.
+    let margin_x = 80.0_f64.min(w);
+    let margin_y = 80.0_f64.min(h);
+    x = (x + offset_x.clamp(-2000.0, 2000.0)).clamp(mx - w + margin_x, mx + mw - margin_x);
+    y = (y + offset_y.clamp(-2000.0, 2000.0)).clamp(my - h + margin_y, my + mh - margin_y);
+    // Snap, don't glide: per-frame IPC window moves cost a full repaint each
+    // and can never hold 60fps. All motion stays in compositor-friendly
+    // transform/opacity inside the webview (see the React entrance springs).
     window.set_size(Size::Logical(LogicalSize::new(w, h))).map_err(|e| e.to_string())?;
     window.set_position(Position::Logical(LogicalPosition::new(x, y))).map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())?;
@@ -158,17 +165,28 @@ pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64
     let nh = s.height as f64 / factor;
     tooltip.set_size(Size::Logical(LogicalSize::new(TOOLTIP_W, TOOLTIP_H))).map_err(|e| e.to_string())?;
     let k = clamp_scale(notch_scale);
+    // Clamp inside the monitor the notch is actually on. Secondary monitors
+    // live at negative offsets, so clamping to 0,0 strands the card on the
+    // primary display.
+    let (mx, my, mw, mh) = notch
+        .current_monitor()
+        .ok()
+        .flatten()
+        .as_ref()
+        .map(monitor_rect)
+        .or_else(|| primary_rect(app).ok())
+        .unwrap_or((0.0, 0.0, 2560.0, 1440.0));
 
     let (x, y) = match edge {
         Edge::Right | Edge::Left => {
             let center = (CURL + START_PAD + index as f64 * (CELL + GAP) + RING / 2.0) * k;
-            let y = (ny + center - TOOLTIP_H / 2.0).max(0.0);
+            let y = (ny + center - TOOLTIP_H / 2.0).clamp(my, (my + mh - TOOLTIP_H).max(my));
             let x = match edge { Edge::Right => nx - TOOLTIP_W + 9.0, _ => nx + nw - 9.0 };
             (x, y)
         }
         Edge::Top | Edge::Bottom => {
             let center = (CURL + START_PAD + index as f64 * (HORIZONTAL_CELL + GAP) + RING / 2.0) * k;
-            let x = (nx + center - TOOLTIP_W / 2.0).max(0.0);
+            let x = (nx + center - TOOLTIP_W / 2.0).clamp(mx, (mx + mw - TOOLTIP_W).max(mx));
             let y = match edge { Edge::Top => ny + nh - 9.0, _ => ny - TOOLTIP_H + 9.0 };
             (x, y)
         }
@@ -265,39 +283,22 @@ fn cursor_position() -> Option<(i32, i32)> {
     (ok != 0).then_some((point.x, point.y))
 }
 
-/// Frosted-glass notch. Windows acrylic needs no transparent tricks from us —
-/// the CSS surface already carries the opacity. Best effort elsewhere.
-pub fn set_notch_blur(app: &AppHandle, enabled: bool) -> Result<(), String> {
-    let window = app.get_webview_window("notch").ok_or("Notch window missing")?;
-    if !enabled {
-        window.set_effects(None).map_err(|e| e.to_string())?;
-        return Ok(());
-    }
-    #[cfg(target_os = "windows")]
-    {
-        use tauri::window::{Effect, EffectState, EffectsBuilder};
-        let effects = EffectsBuilder::new()
-            .effect(Effect::Acrylic)
-            .state(EffectState::Active)
-            .build();
-        window.set_effects(Some(effects)).map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
 /// Resize the settings window to fit its content (measured frontend-side),
-/// clamped to the monitor so it can neither scroll nor clip.
+/// clamped to the monitor so it can neither scroll nor clip. Never fails
+/// silently: worst case it fits to a sane default cap and logs why.
 pub fn fit_settings(app: &AppHandle, height: f64) -> Result<(), String> {
     let window = app
         .get_webview_window("settings")
         .ok_or("Settings window missing")?;
-    let (_, _, _, mh) = window
+    let mh = window
         .current_monitor()
-        .map_err(|e| e.to_string())?
+        .ok()
+        .flatten()
         .as_ref()
         .map(monitor_rect)
         .or_else(|| primary_rect(app).ok())
-        .ok_or("No monitor for settings window")?;
+        .map(|(_, _, _, mh)| mh)
+        .unwrap_or(900.0);
     let h = height.clamp(420.0, (mh - 60.0).max(420.0));
     let size = window.outer_size().map_err(|e| e.to_string())?;
     let scale = window.scale_factor().map_err(|e| e.to_string())?;

@@ -8,12 +8,13 @@ import {
   openProvider,
   openSettings,
   runningInTauri,
-  setBlur,
   setEdge,
   showContextMenu,
   showTooltip,
+  trace,
 } from "../lib/backend";
 import { loadSettings } from "../lib/settings";
+import { checkForUpdates } from "../lib/updates";
 import { bandFor, resolveSurface, themeVars, useSystemLight } from "../lib/theme";
 import { clamp01, formatPercent, headlineWindow } from "../lib/usage";
 import { ProviderLogo } from "../components/ProviderLogo";
@@ -107,9 +108,18 @@ function ProviderCell({
 export function NotchView() {
   const [snapshots, setSnapshots] = useState<ProviderSnapshot[]>([]);
   const [settings, setSettings] = useState(loadSettings);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void checkForUpdates()
+      .then((info) => { if (live) setUpdateAvailable(info?.available ?? false); })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, []);
   const sysLight = useSystemLight();
   const surface = resolveSurface(settings.mode, settings.surface, sysLight);
-  const shellStyle = { ...themeVars(surface, settings.opacity), zoom: settings.scale };
+  const shellStyle = { ...themeVars(surface), zoom: settings.scale, opacity: settings.opacity };
   const leaveTimer = useRef<number | null>(null);
   // Invalidates in-flight hide timers (see `leave`).
   const leaveGen = useRef(0);
@@ -152,11 +162,11 @@ export function NotchView() {
       settings.offsetX,
       settings.offsetY,
     );
-    void setBlur(settings.blur);
-  }, [edge, enabled.length, settings.scale, settings.monitor, settings.offsetX, settings.offsetY, settings.blur]);
+  }, [edge, enabled.length, settings.scale, settings.monitor, settings.offsetX, settings.offsetY]);
 
   const doHide = useCallback(() => {
     tipRef.current = null;
+    setHoveredId(null);
     void hideTooltip();
   }, []);
 
@@ -199,9 +209,11 @@ export function NotchView() {
   const hover = (snapshot: ProviderSnapshot, index: number) => {
     leaveGen.current++;
     if (leaveTimer.current != null) window.clearTimeout(leaveTimer.current);
+    void trace(`enter ${snapshot.id} ${index}`);
     // Same card already visible: skip the re-show (prevents show/hide flapping).
     if (tipRef.current?.id === snapshot.id) return;
     tipRef.current = { id: snapshot.id, at: Date.now() };
+    setHoveredId(snapshot.id);
     if (runningInTauri()) {
       void emitTo("tooltip", "tooltip:show", { snapshot, edge, index });
     }
@@ -210,33 +222,52 @@ export function NotchView() {
     });
   };
 
+  // Launch + edge-switch entrance: the shell glides in from its edge while
+  // the cells stagger (the window itself snaps on edge switches; keying the
+  // stack by edge replays the stagger as a crossfade).
+  const enterFrom =
+    edge === "right" ? { x: 36, y: 0 }
+    : edge === "left" ? { x: -36, y: 0 }
+    : edge === "top" ? { x: 0, y: -36 }
+    : { x: 0, y: 36 };
+
   if (!enabled.length) {
     return (
-      <main className={`notch-shell edge-${edge}`} style={shellStyle} onContextMenu={(event) => {
-        event.preventDefault();
-        void showContextMenu(edge, settings.scale);
-      }}>
+      <motion.main
+        className={`notch-shell edge-${edge}`}
+        style={shellStyle}
+        initial={{ opacity: 0, ...enterFrom }}
+        animate={{ opacity: settings.opacity, x: 0, y: 0 }}
+        transition={{ type: "spring", stiffness: 210, damping: 26, opacity: { duration: 0.18 } }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          void showContextMenu(edge, settings.scale);
+        }}
+      >
         <button className="settings-orb empty" type="button" onClick={() => void openSettings()} aria-label="Settings">
-          <span className="orb-dot" aria-hidden="true" />
           <svg className="orb-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3" />
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
           </svg>
         </button>
-      </main>
+      </motion.main>
     );
   }
 
   return (
-    <main
+    <motion.main
       className={`notch-shell edge-${edge}`}
       style={shellStyle}
+      initial={{ opacity: 0, ...enterFrom }}
+      animate={{ opacity: settings.opacity, x: 0, y: 0 }}
+      transition={{ type: "spring", stiffness: 210, damping: 26, opacity: { duration: 0.18 } }}
       onContextMenu={(event) => {
         event.preventDefault();
         void showContextMenu(edge, settings.scale);
       }}
+      onMouseLeave={() => setHoveredId(null)}
     >
-      <div className="provider-stack">
+      <div key={`${edge}-${enabled.length}`} className="provider-stack">
         {enabled.map((snapshot, index) => (
             <ProviderCell
               key={snapshot.id}
@@ -249,13 +280,13 @@ export function NotchView() {
             />
         ))}
       </div>
-      <button className="settings-orb" type="button" onClick={() => void openSettings()} aria-label="Settings">
-        <span className="orb-dot" aria-hidden="true" />
+      <button className={`settings-orb${hoveredId ? " peek" : ""}`} type="button" onClick={() => void openSettings()} aria-label="Settings">
+        {updateAvailable && <span className="orb-update" aria-label="Update available" />}
         <svg className="orb-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="3" />
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
       </button>
-    </main>
+    </motion.main>
   );
 }

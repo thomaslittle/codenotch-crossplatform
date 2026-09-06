@@ -59,8 +59,6 @@ export interface ClientSettings {
   offsetY: number;
   /** `"primary"` or a monitor index from `list_monitors`. */
   monitor: string;
-  /** Frosted-glass notch (Windows acrylic; best effort elsewhere). */
-  blur: boolean;
 }
 
 export type ThemeMode = "dark" | "light" | "system";
