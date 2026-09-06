@@ -31,13 +31,14 @@ This is **MIT licensed and free forever** — use it, fork it, rip pieces out of
 
 ## What we added on top
 
-We got creative with the original idea and kept building: a fifth provider (**OpenCode Zen**), a full theming engine (**dark / light / system** plus any custom surface color with auto-contrast text), notch **opacity**, **scaling**, screen-edge **nudges** with per-monitor placement, springy motion throughout, an in-app **update checker**, a dev mode that reads your real local usage (never demo numbers), and honest `stale`/`needsAuth` statuses instead of invented percentages. If you think of more customization, open a PR.
+We got creative with the original idea and kept building: a fifth provider (**OpenCode Zen**), a full theming engine (**dark / light / system** plus any custom surface color with auto-contrast text), notch **opacity**, **scaling**, screen-edge **nudges** with per-monitor placement, opt-in **auto-hide** with a configurable idle delay and hover-to-peek edge sliver, springy motion throughout, an in-app **update checker**, a dev mode that reads your real local usage (never demo numbers), and honest `stale`/`needsAuth` statuses instead of invented percentages. If you think of more customization, open a PR.
 
 ## What is implemented
 
 - Windows 10/11 and Linux desktop shell using **Tauri 2 + Rust + React/TypeScript**.
 - The same core visual language: black edge notch, 44px provider rings, used-percent labels, green/yellow/orange usage bands, hover detail card, provider reset windows, and a settings orb.
 - Placement on the **right, left, top, or bottom** edge of any monitor, with X/Y nudge, per-monitor choice, and notch scaling (70–130%).
+- Optional **auto-hide** (off by default): after a configurable idle delay the notch retracts to a small edge sliver; moving the cursor back to that edge peeks it out again. The hidden window becomes click-through so it does not block the app underneath.
 - Separate notch, tooltip, context-menu, and settings windows so transparent desktop areas do not swallow pointer input.
 - Always-on-top, frameless, taskbar-hidden notch behavior.
 - Provider adapters for **Claude Code, Cursor, Codex, Antigravity, and OpenCode Zen**.

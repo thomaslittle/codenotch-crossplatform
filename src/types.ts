@@ -59,6 +59,10 @@ export interface ClientSettings {
   offsetY: number;
   /** `"primary"` or a monitor index from `list_monitors`. */
   monitor: string;
+  /** Retract the notch under its docked edge after an idle delay. */
+  autoHide: boolean;
+  /** Idle delay before auto-hide engages, in seconds (1–60). */
+  autoHideDelaySec: number;
 }
 
 export type ThemeMode = "dark" | "light" | "system";

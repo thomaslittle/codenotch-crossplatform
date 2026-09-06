@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Position, Size};
+use std::sync::atomic::Ordering;
+use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size};
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -7,6 +8,7 @@ pub enum Edge { Right, Left, Top, Bottom }
 
 const SIDE_DEPTH: f64 = 70.0;
 const HORIZONTAL_DEPTH: f64 = 84.0;
+pub const SLIVER: f64 = 6.0;
 const CURL: f64 = 39.0;
 const RING: f64 = 44.0;
 const CELL: f64 = 70.0;
@@ -16,6 +18,7 @@ const START_PAD: f64 = 26.0;
 const END_PAD: f64 = 19.0;
 const TOOLTIP_W: f64 = 270.0;
 const TOOLTIP_H: f64 = 280.0;
+const AUTODETECT_POLL_MS: u64 = 120;
 
 fn monitor_rect(monitor: &tauri::Monitor) -> (f64, f64, f64, f64) {
     let scale = monitor.scale_factor();
@@ -210,7 +213,8 @@ pub fn open_settings(app: &AppHandle) -> Result<(), String> {
 }
 
 pub fn place_context_menu(app: &AppHandle, edge: Edge, notch_scale: f64) -> Result<(), String> {
-    let notch = app.get_webview_window("notch").ok_or("Notch window missing")?;    let menu = app.get_webview_window("context-menu").ok_or("Context menu window missing")?;
+    let notch = app.get_webview_window("notch").ok_or("Notch window missing")?;
+    let menu = app.get_webview_window("context-menu").ok_or("Context menu window missing")?;
     let factor = notch.scale_factor().map_err(|e| e.to_string())?;
     let p = notch.outer_position().map_err(|e| e.to_string())?;
     let s = notch.outer_size().map_err(|e| e.to_string())?;
@@ -241,7 +245,7 @@ pub fn place_context_menu(app: &AppHandle, edge: Edge, notch_scale: f64) -> Resu
 pub fn cursor_inside_notch_or_tooltip(app: &AppHandle) -> Option<bool> {
     #[cfg(target_os = "windows")]
     {
-        let (cx, cy) = cursor_position()?;
+        let (cx, cy) = cursor_position_global()?;
         for label in ["notch", "tooltip"] {
             let window = app.get_webview_window(label)?;
             let position = window.outer_position().ok()?;
@@ -266,8 +270,29 @@ pub fn cursor_inside_notch_or_tooltip(app: &AppHandle) -> Option<bool> {
     }
 }
 
+/// Is the cursor over an auxiliary window that should postpone auto-hide?
+pub fn cursor_inside_overlay(app: &AppHandle) -> Option<bool> {
+    let (cx, cy) = cursor_position_global()?;
+    for label in ["tooltip", "context-menu", "settings"] {
+        let Some(window) = app.get_webview_window(label) else {
+            continue;
+        };
+        if !window.is_visible().unwrap_or(false) {
+            continue;
+        }
+        let position = window.outer_position().ok()?;
+        let size = window.outer_size().ok()?;
+        let (x, y) = (position.x, position.y);
+        let (w, h) = (size.width as i32, size.height as i32);
+        if cx >= x - 2 && cx < x + w + 2 && cy >= y - 2 && cy < y + h + 2 {
+            return Some(true);
+        }
+    }
+    Some(false)
+}
+
 #[cfg(target_os = "windows")]
-fn cursor_position() -> Option<(i32, i32)> {
+pub fn cursor_position_global() -> Option<(i32, i32)> {
     #[repr(C)]
     struct Point {
         x: i32,
@@ -281,6 +306,196 @@ fn cursor_position() -> Option<(i32, i32)> {
     // SAFETY: GetCursorPos only writes the two ints through the pointer.
     let ok = unsafe { GetCursorPos(&mut point) };
     (ok != 0).then_some((point.x, point.y))
+}
+
+#[cfg(target_os = "linux")]
+mod x11 {
+    use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void};
+    use std::sync::OnceLock;
+
+    #[link(name = "X11")]
+    extern "C" {
+        fn XOpenDisplay(display_name: *const c_char) -> *mut c_void;
+        fn XDefaultRootWindow(display: *mut c_void) -> c_ulong;
+        fn XQueryPointer(
+            display: *mut c_void,
+            window: c_ulong,
+            root_return: *mut c_ulong,
+            child_return: *mut c_ulong,
+            root_x_return: *mut c_int,
+            root_y_return: *mut c_int,
+            win_x_return: *mut c_int,
+            win_y_return: *mut c_int,
+            mask_return: *mut c_uint,
+        ) -> c_int;
+    }
+
+    static DISPLAY: OnceLock<Option<usize>> = OnceLock::new();
+
+    pub fn display() -> Option<*mut c_void> {
+        let cached = DISPLAY.get_or_init(|| {
+            // Keep one Xlib connection for the process lifetime. Closing it while
+            // another poll is reading the pointer would be less safe than this tiny
+            // intentional process-lifetime allocation.
+            let display = unsafe { XOpenDisplay(std::ptr::null()) };
+            (!display.is_null()).then_some(display as usize)
+        });
+        (*cached).map(|address| address as *mut c_void)
+    }
+
+    pub fn cursor_position() -> Option<(i32, i32)> {
+        let display = display()?;
+        let root = unsafe { XDefaultRootWindow(display) };
+        let mut root_return = 0;
+        let mut child_return = 0;
+        let mut root_x = 0;
+        let mut root_y = 0;
+        let mut win_x = 0;
+        let mut win_y = 0;
+        let mut mask = 0;
+        // SAFETY: all pointers target initialized stack values and `display`
+        // is cached for the full process lifetime.
+        let ok = unsafe {
+            XQueryPointer(
+                display,
+                root,
+                &mut root_return,
+                &mut child_return,
+                &mut root_x,
+                &mut root_y,
+                &mut win_x,
+                &mut win_y,
+                &mut mask,
+            )
+        };
+        (ok != 0).then_some((root_x, root_y))
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn cursor_position_global() -> Option<(i32, i32)> {
+    x11::cursor_position()
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+pub fn cursor_position_global() -> Option<(i32, i32)> {
+    None
+}
+
+pub fn autohide_supported() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        return true;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        return x11::display().is_some();
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    {
+        false
+    }
+}
+
+/// Return the physical-pixel hotspot band along the docked edge.
+pub fn hotspot_rect(
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    edge: Edge,
+    depth_phys: i32,
+) -> (i32, i32, i32, i32) {
+    let w = w.max(0);
+    let h = h.max(0);
+    match edge {
+        Edge::Right => {
+            let depth = depth_phys.clamp(0, w);
+            (x + w - depth, y, depth, h)
+        }
+        Edge::Left => {
+            let depth = depth_phys.clamp(0, w);
+            (x, y, depth, h)
+        }
+        Edge::Top => {
+            let depth = depth_phys.clamp(0, h);
+            (x, y, w, depth)
+        }
+        Edge::Bottom => {
+            let depth = depth_phys.clamp(0, h);
+            (x, y + h - depth, w, depth)
+        }
+    }
+}
+
+fn point_in_rect(px: i32, py: i32, rect: (i32, i32, i32, i32)) -> bool {
+    let (x, y, w, h) = rect;
+    px >= x && px < x + w && py >= y && py < y + h
+}
+
+pub fn set_notch_retracted(app: &AppHandle, retracted: bool, edge: Edge) -> Result<(), String> {
+    let state = app.state::<crate::AutohideState>();
+    let previous = state.retracted.swap(retracted, Ordering::AcqRel);
+    if previous == retracted {
+        return Ok(());
+    }
+
+    let window = app.get_webview_window("notch").ok_or_else(|| {
+        state.retracted.store(previous, Ordering::Release);
+        "Notch window missing".to_string()
+    })?;
+    if let Err(error) = window.set_ignore_cursor_events(retracted) {
+        state.retracted.store(previous, Ordering::Release);
+        return Err(error.to_string());
+    }
+
+    if retracted {
+        spawn_retract_poll(app.clone(), edge);
+    }
+    Ok(())
+}
+
+fn spawn_retract_poll(app: AppHandle, edge: Edge) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(AUTODETECT_POLL_MS)).await;
+            if !app.state::<crate::AutohideState>().retracted.load(Ordering::Acquire) {
+                break;
+            }
+            let Some(window) = app.get_webview_window("notch") else {
+                break;
+            };
+            if !window.is_visible().unwrap_or(false) {
+                break;
+            }
+            let Some((cx, cy)) = cursor_position_global() else {
+                continue;
+            };
+            let Ok(position) = window.outer_position() else {
+                continue;
+            };
+            let Ok(size) = window.outer_size() else {
+                continue;
+            };
+            let Ok(scale_factor) = window.scale_factor() else {
+                continue;
+            };
+            let width = i32::try_from(size.width).unwrap_or(i32::MAX);
+            let height = i32::try_from(size.height).unwrap_or(i32::MAX);
+            let depth = (SLIVER * 2.0 * scale_factor).round().max(1.0) as i32;
+            let hotspot = hotspot_rect(position.x, position.y, width, height, edge, depth);
+            if !point_in_rect(cx, cy, hotspot) {
+                continue;
+            }
+
+            // Re-enable input before telling the webview to spring back in so
+            // the returning shell can receive hover events immediately.
+            if set_notch_retracted(&app, false, edge).is_ok() {
+                let _ = app.emit_to("notch", "notch:peek", ());
+                break;
+            }
+        }
+    });
 }
 
 /// Resize the settings window to fit its content (measured frontend-side),
@@ -307,4 +522,29 @@ pub fn fit_settings(app: &AppHandle, height: f64) -> Result<(), String> {
         .set_size(Size::Logical(LogicalSize::new(w, h)))
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{hotspot_rect, Edge};
+
+    #[test]
+    fn hotspot_hugs_right_edge() {
+        assert_eq!(hotspot_rect(10, 20, 100, 50, Edge::Right, 12), (98, 20, 12, 50));
+    }
+
+    #[test]
+    fn hotspot_hugs_left_edge() {
+        assert_eq!(hotspot_rect(10, 20, 100, 50, Edge::Left, 12), (10, 20, 12, 50));
+    }
+
+    #[test]
+    fn hotspot_hugs_top_edge() {
+        assert_eq!(hotspot_rect(10, 20, 100, 50, Edge::Top, 12), (10, 20, 100, 12));
+    }
+
+    #[test]
+    fn hotspot_hugs_bottom_edge() {
+        assert_eq!(hotspot_rect(10, 20, 100, 50, Edge::Bottom, 12), (10, 58, 100, 12));
+    }
 }
