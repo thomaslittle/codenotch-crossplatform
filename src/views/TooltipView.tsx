@@ -23,7 +23,7 @@ export function TooltipView() {
   const [payload, setPayload] = useState<Payload | null>(null);
   const [settings, setSettings] = useState(loadSettings);
   const sysLight = useSystemLight();
-  const surface = resolveSurface(settings.mode, settings.surface, sysLight);
+  const surface = resolveSurface(settings.mode, settings.surface, sysLight, settings.theme);
 
   useEffect(() => {
     if (!runningInTauri()) return;
