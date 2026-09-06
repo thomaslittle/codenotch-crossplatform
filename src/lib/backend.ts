@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Edge, MonitorInfo, ProviderSnapshot } from "../types";
+import type { Edge, MonitorInfo, ProviderSnapshot, ShellStyle } from "../types";
 
 export function runningInTauri(): boolean {
   return "__TAURI_INTERNALS__" in window;
@@ -23,9 +23,10 @@ export async function setEdge(
   offsetX: number,
   offsetY: number,
   compact = false,
+  shellStyle: ShellStyle = "tab",
 ): Promise<void> {
   if (!runningInTauri()) return;
-  await throttledInvoke("set_edge", { edge, providerCount, scale, monitor, offsetX, offsetY, compact });
+  await throttledInvoke("set_edge", { edge, providerCount, scale, monitor, offsetX, offsetY, compact, shellStyle });
 }
 
 // Window placement invokes are throttled (leading + trailing): slider drags
@@ -63,16 +64,22 @@ export async function listMonitors(): Promise<MonitorInfo[]> {
   return invoke<MonitorInfo[]>("list_monitors");
 }
 
-/** Resize the settings window to fit its measured content height. */
+/** Legacy no-op caller surface retained for compatibility with older views. */
 export async function fitSettings(height: number): Promise<void> {
   if (!runningInTauri()) return;
   await invoke("fit_settings", { height }).catch(() => undefined);
 }
 
-export async function showTooltip(edge: Edge, index: number, scale: number, compact = false): Promise<void> {
+export async function showTooltip(
+  edge: Edge,
+  index: number,
+  scale: number,
+  compact = false,
+  shellStyle: ShellStyle = "tab",
+): Promise<void> {
   if (!runningInTauri()) return;
   try {
-    await invoke("show_tooltip", { edge, index, scale, compact });
+    await invoke("show_tooltip", { edge, index, scale, compact, shellStyle });
   } catch (error) {
     console.error("[codenotch] show_tooltip failed:", error);
     throw error;
