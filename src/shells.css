@@ -1,0 +1,223 @@
+/* Shell/body themes. Loaded after styles.css so each silhouette can override
+   the original moulded tab without disturbing gauge/layout styling. */
+
+.shell-picker { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* Stale means "showing the last good reading", not disabled. Keep it readable
+   and use a small amber status pip instead of fading the entire provider out. */
+.provider-ring.is-stale { opacity: .82; }
+.provider-ring.is-stale::after {
+  content: "";
+  position: absolute;
+  z-index: 6;
+  top: 1px;
+  right: 1px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffad33;
+  box-shadow: 0 0 5px rgba(255, 173, 51, .8);
+  pointer-events: none;
+}
+
+/* All non-tab shells replace the moulded curl pseudo elements. */
+html[data-shell="bubble"] .notch-shell::before,
+html[data-shell="bubble"] .notch-shell::after,
+html[data-shell="sharp"] .notch-shell::after,
+html[data-shell="trapezoid"] .notch-shell::after,
+html[data-shell="pill"] .notch-shell::after,
+html[data-shell="rail"] .notch-shell::after,
+html[data-shell="ghost"] .notch-shell::before,
+html[data-shell="ghost"] .notch-shell::after {
+  display: none;
+  background-image: none;
+}
+
+/* BUBBLE — no shared body. Every provider is its own little tile. */
+html[data-shell="bubble"] .provider-cell {
+  background: var(--black);
+  border: 1px solid var(--row-border);
+  border-radius: 24px;
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .22);
+}
+html[data-shell="bubble"] .provider-cell:not(.is-compact) {
+  width: 54px;
+  min-width: 54px;
+  padding: 5px 3px 7px;
+}
+html[data-shell="bubble"] .provider-cell.is-compact {
+  border-radius: 16px;
+  padding: 0;
+}
+html[data-shell="bubble"] .settings-orb {
+  background: var(--black);
+  border: 1px solid var(--row-border);
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .22);
+}
+html[data-shell="bubble"] .settings-orb .orb-cog { opacity: .62; }
+
+/* SHARP — full, hard-edged slab. */
+html[data-shell="sharp"] .edge-right::before,
+html[data-shell="sharp"] .edge-left::before {
+  display: block;
+  top: var(--curl);
+  bottom: var(--curl);
+  left: 0;
+  right: 0;
+  background: var(--black);
+  border-radius: 2px;
+}
+html[data-shell="sharp"] .edge-top::before,
+html[data-shell="sharp"] .edge-bottom::before {
+  display: block;
+  left: var(--curl);
+  right: var(--curl);
+  top: 0;
+  bottom: 0;
+  background: var(--black);
+  border-radius: 2px;
+}
+html[data-shell="sharp"] .provider-cell:hover,
+html[data-shell="sharp"] .provider-cell:focus-visible {
+  background: var(--row-bg);
+  border-radius: 3px;
+}
+
+/* TRAPEZOID — angled inner face, flat against the display edge. */
+html[data-shell="trapezoid"] .edge-right::before {
+  display: block;
+  inset: var(--curl) 0;
+  background: var(--black);
+  clip-path: polygon(18px 0, 100% 0, 100% 100%, 18px 100%, 0 88%, 0 12%);
+  border-radius: 0;
+}
+html[data-shell="trapezoid"] .edge-left::before {
+  display: block;
+  inset: var(--curl) 0;
+  background: var(--black);
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 12%, 100% 88%, calc(100% - 18px) 100%, 0 100%);
+  border-radius: 0;
+}
+html[data-shell="trapezoid"] .edge-top::before {
+  display: block;
+  inset: 0 var(--curl);
+  background: var(--black);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), 88% 100%, 12% 100%, 0 calc(100% - 14px));
+  border-radius: 0;
+}
+html[data-shell="trapezoid"] .edge-bottom::before {
+  display: block;
+  inset: 0 var(--curl);
+  background: var(--black);
+  clip-path: polygon(12% 0, 88% 0, 100% 14px, 100% 100%, 0 100%, 0 14px);
+  border-radius: 0;
+}
+
+/* PILL — soft continuous capsule without the tab curls. */
+html[data-shell="pill"] .edge-right::before {
+  display: block;
+  inset: var(--curl) 0;
+  background: var(--black);
+  border-radius: 34px 0 0 34px;
+}
+html[data-shell="pill"] .edge-left::before {
+  display: block;
+  inset: var(--curl) 0;
+  background: var(--black);
+  border-radius: 0 34px 34px 0;
+}
+html[data-shell="pill"] .edge-top::before {
+  display: block;
+  inset: 0 var(--curl);
+  background: var(--black);
+  border-radius: 0 0 34px 34px;
+}
+html[data-shell="pill"] .edge-bottom::before {
+  display: block;
+  inset: 0 var(--curl);
+  background: var(--black);
+  border-radius: 34px 34px 0 0;
+}
+
+/* RAIL — a narrow dock strip with gauges intentionally floating off it. */
+html[data-shell="rail"] .edge-right::before {
+  display: block;
+  top: var(--curl);
+  bottom: var(--curl);
+  right: 0;
+  left: auto;
+  width: 24px;
+  background: var(--black);
+  border-radius: 14px 0 0 14px;
+}
+html[data-shell="rail"] .edge-left::before {
+  display: block;
+  top: var(--curl);
+  bottom: var(--curl);
+  left: 0;
+  right: auto;
+  width: 24px;
+  background: var(--black);
+  border-radius: 0 14px 14px 0;
+}
+html[data-shell="rail"] .edge-top::before {
+  display: block;
+  top: 0;
+  bottom: auto;
+  left: var(--curl);
+  right: var(--curl);
+  height: 24px;
+  background: var(--black);
+  border-radius: 0 0 14px 14px;
+}
+html[data-shell="rail"] .edge-bottom::before {
+  display: block;
+  top: auto;
+  bottom: 0;
+  left: var(--curl);
+  right: var(--curl);
+  height: 24px;
+  background: var(--black);
+  border-radius: 14px 14px 0 0;
+}
+html[data-shell="rail"] .provider-ring {
+  background: color-mix(in srgb, var(--black) 84%, transparent);
+  border: 1px solid var(--row-border);
+  border-radius: 14px;
+  backdrop-filter: blur(7px);
+}
+html[data-shell="rail"] .settings-orb .orb-cog { opacity: .55; }
+
+/* GHOST — zero shared chrome. Only gauges/icons remain. */
+html[data-shell="ghost"] .provider-ring {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .62));
+}
+html[data-shell="ghost"] .provider-percent {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .9), 0 0 6px rgba(0, 0, 0, .55);
+}
+html[data-shell="ghost"] .settings-orb {
+  width: 34px;
+  height: 34px;
+  background: color-mix(in srgb, var(--black) 68%, transparent);
+  border: 1px solid var(--row-border);
+  backdrop-filter: blur(6px);
+}
+html[data-shell="ghost"] .settings-orb .orb-cog {
+  width: 15px;
+  height: 15px;
+  opacity: .62;
+  transform: none;
+}
+
+/* Keep provider bubbles/ghost gauges tight when paired with the compact
+   Stacked / Columns / Micro layouts. */
+html[data-shell="bubble"] .provider-cell.is-compact,
+html[data-shell="rail"] .provider-cell.is-compact,
+html[data-shell="ghost"] .provider-cell.is-compact {
+  width: 44px;
+  min-width: 44px;
+}
+
+@media (max-width: 520px) {
+  .shell-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
