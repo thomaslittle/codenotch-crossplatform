@@ -73,6 +73,9 @@ impl ProviderStore {
             if now >= gate.next_attempt {
                 // Claim the next network slot before awaiting so overlapping
                 // frontend refreshes cannot stampede the OAuth usage endpoint.
+                // Community testing of Claude's private usage endpoint shows
+                // the Claude-Code user-agent path is reliable at ~3 minute
+                // intervals, so keep our live reads at or below that cadence.
                 gate.next_attempt = now + CLAUDE_MIN_REFRESH;
                 (true, gate.rate_limited)
             } else {
@@ -142,7 +145,7 @@ impl ProviderStore {
 
     fn persist(&self, cache: &HashMap<String, ProviderSnapshot>) {
         let Some(parent) = self.cache_path.parent() else { return };
-        if fs::create_dir_all(parent).is_err() { return };
+        if fs::create_dir_all(parent).is_err() { return; }
         let Ok(text) = serde_json::to_string(cache) else { return };
         let _ = fs::write(&self.cache_path, text);
     }
