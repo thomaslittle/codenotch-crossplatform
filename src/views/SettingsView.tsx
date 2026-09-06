@@ -414,7 +414,7 @@ export function SettingsView() {
         <p>Codex reads local rollout logs. Cursor uses its local state database. Claude uses Claude Code&apos;s OAuth credential. OpenCode polls Zen usage with your saved API key. Antigravity reads its OS-keyring login. This app never writes provider credentials.</p>
       </motion.section>
       <footer className="settings-footer">
-        <span>Windows + Linux clean-room port · v0.2.0</span>
+        <span>Windows + Linux clean-room port · v0.3.0</span>
         <span className="footer-links">
           <button type="button" className="reset-link" onClick={() => void openExternal(REPO_URL)}>
             GitHub
