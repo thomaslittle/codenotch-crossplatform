@@ -46,15 +46,17 @@ export interface ProviderSnapshot {
 export interface ClientSettings {
   edge: Edge;
   enabledProviders: string[];
-  /** Named notch visual preset; `custom` preserves the current freeform appearance controls. */
+  /** Named color/surface preset; `custom` preserves the freeform appearance controls. */
   theme: ThemePresetId;
+  /** Outer notch body/silhouette treatment. */
+  shellStyle: ShellStyle;
   /** Provider gauge/layout treatment. */
   gaugeStyle: GaugeStyle;
   /** Color scheme source. `system` follows the OS and uses default surfaces. */
   mode: ThemeMode;
   /** Custom notch/card surface (`#rrggbb`). Used in dark/light mode. */
   surface: string;
-  /** Notch + card surface opacity, 0.4–1. */
+  /** Notch + card surface opacity, 0–1. */
   opacity: number;
   /** Notch scale factor, 0.7–1.3. */
   scale: number;
@@ -71,6 +73,7 @@ export interface ClientSettings {
 
 export type ThemeMode = "dark" | "light" | "system";
 export type ThemePresetId = "custom" | "midnight" | "graphite" | "abyss" | "forest" | "plum";
+export type ShellStyle = "tab" | "bubble" | "sharp" | "trapezoid" | "pill" | "rail" | "ghost";
 export type GaugeStyle = "classic" | "slim" | "halo" | "stacked" | "columns" | "micro";
 
 export interface MonitorInfo {
