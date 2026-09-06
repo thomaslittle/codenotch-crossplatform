@@ -1,0 +1,46 @@
+/* Gauge/shell compatibility rules.
+   Shell chrome and gauge geometry are intentionally independent, but a few
+   combinations need bespoke treatment so we do not stack a rectangular tile
+   behind an already self-contained circular gauge. Loaded after shells.css. */
+
+/* Classic + Halo are already complete visual objects. On Dock and Rail they
+   should float like dock icons, not sit inside another rounded card. */
+html[data-shell="dock"] .provider-ring.gauge-classic,
+html[data-shell="dock"] .provider-ring.gauge-halo,
+html[data-shell="rail"] .provider-ring.gauge-classic,
+html[data-shell="rail"] .provider-ring.gauge-halo {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, .55));
+}
+
+/* Keep the percentage readable when the ring itself has no backing tile. */
+html[data-shell="dock"] .provider-cell:has(.gauge-classic) .provider-percent,
+html[data-shell="dock"] .provider-cell:has(.gauge-halo) .provider-percent,
+html[data-shell="rail"] .provider-cell:has(.gauge-classic) .provider-percent,
+html[data-shell="rail"] .provider-cell:has(.gauge-halo) .provider-percent {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .9), 0 0 5px rgba(0, 0, 0, .42);
+}
+
+/* The compact layouts still benefit from a restrained glass tile because the
+   bars/columns do not define their own silhouette. Keep it lighter on Dock so
+   it reads as a dock surface rather than a stack of cards. */
+html[data-shell="dock"] .provider-ring.gauge-stacked,
+html[data-shell="dock"] .provider-ring.gauge-columns,
+html[data-shell="dock"] .provider-ring.gauge-micro,
+html[data-shell="dock"] .provider-ring.gauge-slim {
+  background: color-mix(in srgb, var(--black) 24%, transparent);
+  border-color: color-mix(in srgb, var(--text) 8%, transparent);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .14);
+}
+
+html[data-shell="rail"] .provider-ring.gauge-stacked,
+html[data-shell="rail"] .provider-ring.gauge-columns,
+html[data-shell="rail"] .provider-ring.gauge-micro,
+html[data-shell="rail"] .provider-ring.gauge-slim {
+  background: color-mix(in srgb, var(--black) 52%, transparent);
+  border-color: color-mix(in srgb, var(--text) 12%, transparent);
+  box-shadow: 0 3px 9px rgba(0, 0, 0, .16);
+}
