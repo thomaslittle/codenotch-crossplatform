@@ -129,34 +129,45 @@ html[data-shell="sharp"] .provider-cell:focus-visible {
   border-radius: 3px;
 }
 
-/* TRAPEZOID — angled inner face, flat against the display edge. */
+/* TRAPEZOID — a clean four-sided wedge. The screen-facing edge stays full
+   length while the desktop-facing edge is slightly shorter, creating one
+   broad, deliberate taper instead of the old pinched badge/hourglass shape. */
 html[data-shell="trapezoid"] .edge-right::before {
   display: block;
   inset: var(--curl) 0;
   background: var(--black);
-  clip-path: polygon(18px 0, 100% 0, 100% 100%, 18px 100%, 0 88%, 0 12%);
+  clip-path: polygon(0 7%, 100% 0, 100% 100%, 0 93%);
+  filter: drop-shadow(-3px 5px 10px rgba(0, 0, 0, .18));
   border-radius: 0;
 }
 html[data-shell="trapezoid"] .edge-left::before {
   display: block;
   inset: var(--curl) 0;
   background: var(--black);
-  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 12%, 100% 88%, calc(100% - 18px) 100%, 0 100%);
+  clip-path: polygon(0 0, 100% 7%, 100% 93%, 0 100%);
+  filter: drop-shadow(3px 5px 10px rgba(0, 0, 0, .18));
   border-radius: 0;
 }
 html[data-shell="trapezoid"] .edge-top::before {
   display: block;
   inset: 0 var(--curl);
   background: var(--black);
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), 88% 100%, 12% 100%, 0 calc(100% - 14px));
+  clip-path: polygon(0 0, 100% 0, 93% 100%, 7% 100%);
+  filter: drop-shadow(0 3px 10px rgba(0, 0, 0, .18));
   border-radius: 0;
 }
 html[data-shell="trapezoid"] .edge-bottom::before {
   display: block;
   inset: 0 var(--curl);
   background: var(--black);
-  clip-path: polygon(12% 0, 88% 0, 100% 14px, 100% 100%, 0 100%, 0 14px);
+  clip-path: polygon(7% 0, 93% 0, 100% 100%, 0 100%);
+  filter: drop-shadow(0 -3px 10px rgba(0, 0, 0, .18));
   border-radius: 0;
+}
+html[data-shell="trapezoid"] .provider-cell:hover,
+html[data-shell="trapezoid"] .provider-cell:focus-visible {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 8px;
 }
 
 /* PILL — soft continuous capsule without the tab curls. */
