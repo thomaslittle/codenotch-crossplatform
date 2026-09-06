@@ -21,6 +21,12 @@ import { loadSettings } from "../lib/settings";
 import { checkForUpdates } from "../lib/updates";
 import { bandForRemaining, resolveSurface, themeVars, useSystemLight } from "../lib/theme";
 import { clamp01, formatPercent, headlineWindow, remainingFraction } from "../lib/usage";
+import {
+  clearUsageResetAlerts,
+  getUsageResetAlerts,
+  processUsageResetSnapshots,
+  type UsageResetAlert,
+} from "../lib/usageAlerts";
 import { ProviderLogo } from "../components/ProviderLogo";
 import type { Edge, GaugeStyle, LimitWindow, ProviderSnapshot, ShellStyle } from "../types";
 
@@ -29,6 +35,9 @@ const classicTrackStroke = 5.8;
 const classicProgressStroke = 3;
 const classicRadius = (ringSize - classicTrackStroke) / 2;
 const classicCircumference = 2 * Math.PI * classicRadius;
+const resetGreen = "#00ff88";
+const resetPeekSize = 36;
+const resetPeekTravel = resetPeekSize - 6;
 
 function isCompactGauge(style: GaugeStyle): boolean {
   return style === "stacked" || style === "columns" || style === "micro";
@@ -62,6 +71,59 @@ function compactLabel(window: LimitWindow): string {
 
 function visibleWindows(snapshot: ProviderSnapshot): LimitWindow[] {
   return snapshot.windows.slice(0, 3);
+}
+
+function resetSliverStyle(edge: Edge): CSSProperties {
+  const base: CSSProperties = {
+    position: "absolute",
+    zIndex: 7,
+    pointerEvents: "none",
+    background: resetGreen,
+    boxShadow: "0 0 10px rgba(0, 255, 136, .95)",
+  };
+  switch (edge) {
+    case "right":
+      return { ...base, left: 0, top: "calc(50% - 12px)", width: 6, height: 24, borderRadius: "0 6px 6px 0" };
+    case "left":
+      return { ...base, right: 0, top: "calc(50% - 12px)", width: 6, height: 24, borderRadius: "6px 0 0 6px" };
+    case "top":
+      return { ...base, bottom: 0, left: "calc(50% - 12px)", width: 24, height: 6, borderRadius: "6px 6px 0 0" };
+    case "bottom":
+      return { ...base, top: 0, left: "calc(50% - 12px)", width: 24, height: 6, borderRadius: "0 0 6px 6px" };
+  }
+}
+
+function resetPeekStyle(edge: Edge): CSSProperties {
+  const base: CSSProperties = {
+    position: "absolute",
+    zIndex: 8,
+    width: resetPeekSize,
+    height: resetPeekSize,
+    borderRadius: 12,
+    display: "grid",
+    placeItems: "center",
+    color: "var(--text)",
+    background: "color-mix(in srgb, var(--black) 88%, transparent)",
+    border: `1px solid ${resetGreen}`,
+    boxShadow: "0 7px 18px rgba(0,0,0,.38), 0 0 14px rgba(0,255,136,.7)",
+    backdropFilter: "blur(7px)",
+    pointerEvents: "none",
+  };
+  switch (edge) {
+    case "right": return { ...base, left: 0, top: `calc(50% - ${resetPeekSize / 2}px)` };
+    case "left": return { ...base, right: 0, top: `calc(50% - ${resetPeekSize / 2}px)` };
+    case "top": return { ...base, bottom: 0, left: `calc(50% - ${resetPeekSize / 2}px)` };
+    case "bottom": return { ...base, top: 0, left: `calc(50% - ${resetPeekSize / 2}px)` };
+  }
+}
+
+function resetPeekMotion(edge: Edge): { x: number[]; y: number[] } {
+  switch (edge) {
+    case "right": return { x: [0, -resetPeekTravel - 3, -resetPeekTravel, -resetPeekTravel, 0], y: [0, 0, 0, 0, 0] };
+    case "left": return { x: [0, resetPeekTravel + 3, resetPeekTravel, resetPeekTravel, 0], y: [0, 0, 0, 0, 0] };
+    case "top": return { x: [0, 0, 0, 0, 0], y: [0, resetPeekTravel + 3, resetPeekTravel, resetPeekTravel, 0] };
+    case "bottom": return { x: [0, 0, 0, 0, 0], y: [0, -resetPeekTravel - 3, -resetPeekTravel, -resetPeekTravel, 0] };
+  }
 }
 
 function ActivityOverlay({ snapshot }: { snapshot: ProviderSnapshot }) {
@@ -284,8 +346,10 @@ function ProviderCell({
   surface,
   gaugeStyle,
   shellStyle,
+  hasResetAlert,
   onHover,
   onLeave,
+  onOpen,
 }: {
   snapshot: ProviderSnapshot;
   index: number;
@@ -293,8 +357,10 @@ function ProviderCell({
   surface: string;
   gaugeStyle: GaugeStyle;
   shellStyle: ShellStyle;
+  hasResetAlert: boolean;
   onHover: (snapshot: ProviderSnapshot, index: number) => void;
   onLeave: () => void;
+  onOpen: (snapshot: ProviderSnapshot) => void;
 }) {
   const headlineUsed = headlineWindow(snapshot)?.usedFraction;
   const headlineRemaining = headlineUsed == null ? null : remainingFraction(headlineUsed);
@@ -305,20 +371,20 @@ function ProviderCell({
   const slide = edge === "right" || edge === "left"
     ? { x: 0, y: 12 }
     : { x: 12, y: 0 };
-  const compactCellStyle: CSSProperties | undefined = compact
-    ? { width: 44, minWidth: 44, height: 44, gap: 0 }
-    : undefined;
+  const cellStyle: CSSProperties = compact
+    ? { position: "relative", width: 44, minWidth: 44, height: 44, gap: 0 }
+    : { position: "relative" };
   return (
     <motion.button
       type="button"
       className={`provider-cell${compact ? " is-compact" : ""}`}
-      style={compactCellStyle}
-      aria-label={`${snapshot.displayName} ${usageSummary}`}
+      style={cellStyle}
+      aria-label={`${snapshot.displayName} ${usageSummary}${hasResetAlert ? ", quota refreshed" : ""}`}
       onMouseEnter={() => onHover(snapshot, index)}
       onMouseLeave={onLeave}
       onFocus={() => onHover(snapshot, index)}
       onBlur={onLeave}
-      onClick={() => void openProvider(snapshot)}
+      onClick={() => onOpen(snapshot)}
       data-edge={edge}
       initial={{ opacity: 0, scale: 0.8, ...slide }}
       animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
@@ -328,6 +394,25 @@ function ProviderCell({
       transition={{ type: "spring", stiffness: 420, damping: 26, delay: Math.min(index * 0.05, 0.25) }}
     >
       <ProviderGauge snapshot={snapshot} surface={surface} gaugeStyle={gaugeStyle} />
+      {hasResetAlert && (
+        <motion.span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            zIndex: 6,
+            top: -2,
+            right: -1,
+            width: 9,
+            height: 9,
+            borderRadius: "50%",
+            background: resetGreen,
+            boxShadow: "0 0 9px rgba(0,255,136,.95)",
+            pointerEvents: "none",
+          }}
+          animate={{ opacity: [1, 0.42, 1] }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+        />
+      )}
       {!compact && <span className="provider-percent">{headlineRemaining == null ? (snapshot.displayValue ?? "—") : formatPercent(headlineRemaining)}</span>}
     </motion.button>
   );
@@ -336,10 +421,18 @@ function ProviderCell({
 export function NotchView() {
   const [snapshots, setSnapshots] = useState<ProviderSnapshot[]>([]);
   const [settings, setSettings] = useState(loadSettings);
+  const [usageAlerts, setUsageAlerts] = useState(getUsageResetAlerts);
+  const [resetReveal, setResetReveal] = useState<UsageResetAlert | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [retracted, setRetracted] = useState(false);
   const [autoHideAvailable, setAutoHideAvailable] = useState(false);
+  const retractedRef = useRef(false);
+  const settingsRef = useRef(settings);
+  const resetRevealTimer = useRef<number | null>(null);
+
+  retractedRef.current = retracted;
+  settingsRef.current = settings;
 
   useEffect(() => {
     let live = true;
@@ -374,10 +467,37 @@ export function NotchView() {
     () => snapshots.filter((item) => settings.enabledProviders.includes(item.id)),
     [settings, snapshots],
   );
+  const activeUsageAlerts = useMemo(
+    () => usageAlerts.filter((alert) => settings.enabledProviders.includes(alert.providerId)),
+    [settings.enabledProviders, usageAlerts],
+  );
+  const alertedProviders = useMemo(
+    () => new Set(activeUsageAlerts.map((alert) => alert.providerId)),
+    [activeUsageAlerts],
+  );
+  const resetRevealSnapshot = resetReveal
+    ? snapshots.find((snapshot) => snapshot.id === resetReveal.providerId)
+    : undefined;
 
   const refresh = useCallback(async () => {
     try {
-      setSnapshots(await getSnapshots());
+      const previousAlertIds = new Set(getUsageResetAlerts().map((alert) => alert.id));
+      const next = await getSnapshots();
+      setSnapshots(next);
+      const nextAlerts = processUsageResetSnapshots(next);
+      setUsageAlerts(nextAlerts);
+
+      const newest = [...nextAlerts]
+        .reverse()
+        .find((alert) => !previousAlertIds.has(alert.id) && settingsRef.current.enabledProviders.includes(alert.providerId));
+      if (newest && retractedRef.current) {
+        setResetReveal(newest);
+        if (resetRevealTimer.current != null) window.clearTimeout(resetRevealTimer.current);
+        resetRevealTimer.current = window.setTimeout(() => {
+          resetRevealTimer.current = null;
+          setResetReveal(null);
+        }, 2400);
+      }
     } catch {
       // Keep the last good readings rather than blanking the notch.
     }
@@ -464,6 +584,7 @@ export function NotchView() {
   useEffect(() => () => {
     cancelAutoHide();
     if (leaveTimer.current != null) window.clearTimeout(leaveTimer.current);
+    if (resetRevealTimer.current != null) window.clearTimeout(resetRevealTimer.current);
   }, [cancelAutoHide]);
 
   const doHide = useCallback(() => {
@@ -524,6 +645,12 @@ export function NotchView() {
     });
   };
 
+  const openSnapshot = (snapshot: ProviderSnapshot) => {
+    setUsageAlerts(clearUsageResetAlerts(snapshot.id));
+    if (resetReveal?.providerId === snapshot.id) setResetReveal(null);
+    void openProvider(snapshot);
+  };
+
   const enterFrom =
     edge === "right" ? { x: 36, y: 0 }
     : edge === "left" ? { x: -36, y: 0 }
@@ -577,13 +704,53 @@ export function NotchView() {
     onMouseLeave: handleShellMouseLeave,
   };
 
+  const resetSliver = activeUsageAlerts.length > 0 ? (
+    <motion.span
+      aria-hidden="true"
+      style={resetSliverStyle(edge)}
+      animate={{ opacity: [1, 0.4, 1] }}
+      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+    />
+  ) : null;
+
+  const resetPeek = retracted && resetReveal && resetRevealSnapshot ? (
+    <motion.span
+      key={resetReveal.id}
+      aria-hidden="true"
+      style={resetPeekStyle(edge)}
+      initial={{ opacity: 0, scale: 0.72 }}
+      animate={{
+        ...resetPeekMotion(edge),
+        opacity: [0, 1, 1, 1, 0],
+        scale: [0.72, 1.1, 1, 1, 0.82],
+      }}
+      transition={{ duration: 2.15, times: [0, 0.18, 0.32, 0.78, 1], ease: "easeInOut" }}
+    >
+      <ProviderLogo id={resetRevealSnapshot.id} glyph={resetRevealSnapshot.glyph} size={18} />
+      <span
+        style={{
+          position: "absolute",
+          right: 2,
+          top: 2,
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          background: resetGreen,
+          boxShadow: "0 0 7px rgba(0,255,136,.95)",
+        }}
+      />
+    </motion.span>
+  ) : null;
+
   if (!enabled.length) {
     return (
       <motion.main {...shellMotionProps}>
+        {resetSliver}
+        {resetPeek}
         <button className="settings-orb empty" type="button" onClick={() => void openSettings()} aria-label="Settings">
           <svg className="orb-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v-.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z" />
           </svg>
         </button>
       </motion.main>
@@ -598,6 +765,8 @@ export function NotchView() {
 
   return (
     <motion.main {...shellMotionProps}>
+      {resetSliver}
+      {resetPeek}
       <div key={`${edge}-${enabled.length}-${settings.gaugeStyle}-${settings.shellStyle}`} className="provider-stack" style={stackStyle}>
         {enabled.map((snapshot, index) => (
           <ProviderCell
@@ -608,8 +777,10 @@ export function NotchView() {
             surface={surface}
             gaugeStyle={settings.gaugeStyle}
             shellStyle={settings.shellStyle}
+            hasResetAlert={alertedProviders.has(snapshot.id)}
             onHover={hover}
             onLeave={leave}
+            onOpen={openSnapshot}
           />
         ))}
       </div>
@@ -617,7 +788,7 @@ export function NotchView() {
         {updateAvailable && <span className="orb-update" aria-label="Update available" />}
         <svg className="orb-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v-.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z" />
         </svg>
       </button>
     </motion.main>
