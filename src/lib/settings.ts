@@ -26,10 +26,19 @@ function clampNumber(value: unknown, min: number, max: number, fallback: number)
     : fallback;
 }
 
+function applyShellStyle(style: ShellStyle): void {
+  if (typeof document !== "undefined") {
+    document.documentElement.dataset.shell = style;
+  }
+}
+
 export function loadSettings(): ClientSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_SETTINGS;
+    if (!raw) {
+      applyShellStyle(DEFAULT_SETTINGS.shellStyle);
+      return DEFAULT_SETTINGS;
+    }
     const parsed = JSON.parse(raw) as Partial<ClientSettings>;
     const edge = isEdge(parsed.edge) ? parsed.edge : DEFAULT_SETTINGS.edge;
     const enabledProviders = Array.isArray(parsed.enabledProviders)
@@ -50,7 +59,7 @@ export function loadSettings(): ClientSettings {
     const monitor = typeof parsed.monitor === "string" && parsed.monitor ? parsed.monitor : DEFAULT_SETTINGS.monitor;
     const autoHide = typeof parsed.autoHide === "boolean" ? parsed.autoHide : DEFAULT_SETTINGS.autoHide;
     const autoHideDelaySec = clampNumber(parsed.autoHideDelaySec, 1, 60, DEFAULT_SETTINGS.autoHideDelaySec);
-    return {
+    const settings: ClientSettings = {
       edge,
       enabledProviders,
       theme,
@@ -66,12 +75,16 @@ export function loadSettings(): ClientSettings {
       autoHide,
       autoHideDelaySec,
     };
+    applyShellStyle(shellStyle);
+    return settings;
   } catch {
+    applyShellStyle(DEFAULT_SETTINGS.shellStyle);
     return DEFAULT_SETTINGS;
   }
 }
 
 export function saveSettings(settings: ClientSettings): void {
+  applyShellStyle(settings.shellStyle);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
