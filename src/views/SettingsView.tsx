@@ -1,4 +1,5 @@
 import { emitTo } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { motion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { autohideSupported, REPO_URL, fitSettings, getSnapshots, hideWindow, listMonitors, openExternal, runningInTauri } from "../lib/backend";
@@ -71,6 +72,8 @@ export function SettingsView() {
   // Reports on mount, on viewport changes, whenever data arrives, AND on a
   // 1s poll — ResizeObserver alone can't see content growth inside a fixed
   // element, and late layout (fonts, images) can shift heights after mount.
+  // Re-center after a real height change so growth happens around the screen
+  // center instead of extending the old top-left position below the monitor.
   useLayoutEffect(() => {
     const el = document.querySelector(".settings-page");
     if (!(el instanceof HTMLElement)) return;
@@ -78,7 +81,16 @@ export function SettingsView() {
       const height = Math.ceil(el.scrollHeight);
       if (height > 0 && Math.abs(height - lastFit.current) > 2) {
         lastFit.current = height;
-        void fitSettings(height);
+        void fitSettings(height).then(() => {
+          if (!runningInTauri()) return;
+          const settingsWindow = getCurrentWindow();
+          void settingsWindow.center().catch(() => undefined);
+          // WebView/native resize delivery can lag the invoke by a frame on
+          // Windows, so center once more after the new outer size settles.
+          window.setTimeout(() => {
+            void settingsWindow.center().catch(() => undefined);
+          }, 50);
+        });
       }
     };
     report();
@@ -98,6 +110,14 @@ export function SettingsView() {
     if (runningInTauri()) void emitTo("notch", "settings:changed");
   };
 
+  const closeSettings = () => {
+    // The notch may have had auto-hide enabled while this window was open,
+    // which means it never received a new mouseleave to arm its idle timer.
+    // Tell it explicitly that the hold-open overlay is going away.
+    if (runningInTauri()) void emitTo("notch", "settings:closed");
+    void hideWindow("settings");
+  };
+
   const autoHideDisabled = autoHideAvailable !== true;
   const delayIsPreset = autoHideDelays.includes(settings.autoHideDelaySec);
 
@@ -105,14 +125,15 @@ export function SettingsView() {
     <main className="settings-page" style={themeVars(chrome)}>
       <motion.header
         className="settings-header"
+        data-tauri-drag-region
         {...rise}
         transition={{ duration: 0.25, ease: "easeOut" }}
       >
         <div className="drag-region" data-tauri-drag-region style={{ flex: 1 }}>
-          <p className="eyebrow">CODENOTCH</p>
-          <h1>Settings</h1>
+          <p className="eyebrow" data-tauri-drag-region>CODENOTCH</p>
+          <h1 data-tauri-drag-region>Settings</h1>
         </div>
-        <button type="button" className="icon-button" aria-label="Close" onClick={() => void hideWindow("settings")}>
+        <button type="button" className="icon-button" aria-label="Close" onClick={closeSettings}>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
             <path d="M2 2l8 8M10 2l-8 8" />
           </svg>
