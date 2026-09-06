@@ -1,4 +1,4 @@
-import type { ClientSettings, Edge, GaugeStyle } from "../types";
+import type { ClientSettings, Edge, GaugeStyle, ShellStyle } from "../types";
 import { getThemePreset, isSurface, isThemeMode, isThemePreset } from "./theme";
 
 const STORAGE_KEY = "codenotch-crossplatform.settings.v1";
@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS: ClientSettings = {
   edge: "right",
   enabledProviders: ["claude", "cursor", "codex", "gemini", "opencode"],
   theme: "custom",
+  shellStyle: "tab",
   gaugeStyle: "classic",
   mode: "system",
   surface: "#000000",
@@ -35,6 +36,7 @@ export function loadSettings(): ClientSettings {
       ? parsed.enabledProviders.filter((value): value is string => typeof value === "string")
       : DEFAULT_SETTINGS.enabledProviders;
     const theme = isThemePreset(parsed.theme) ? parsed.theme : DEFAULT_SETTINGS.theme;
+    const shellStyle = isShellStyle(parsed.shellStyle) ? parsed.shellStyle : DEFAULT_SETTINGS.shellStyle;
     const gaugeStyle = isGaugeStyle(parsed.gaugeStyle) ? parsed.gaugeStyle : DEFAULT_SETTINGS.gaugeStyle;
     const mode = isThemeMode(parsed.mode) ? parsed.mode : DEFAULT_SETTINGS.mode;
     let surface = isSurface(parsed.surface) ? parsed.surface : DEFAULT_SETTINGS.surface;
@@ -52,6 +54,7 @@ export function loadSettings(): ClientSettings {
       edge,
       enabledProviders,
       theme,
+      shellStyle,
       gaugeStyle,
       mode,
       surface,
@@ -74,6 +77,16 @@ export function saveSettings(settings: ClientSettings): void {
 
 function isEdge(value: unknown): value is Edge {
   return value === "right" || value === "left" || value === "top" || value === "bottom";
+}
+
+function isShellStyle(value: unknown): value is ShellStyle {
+  return value === "tab"
+    || value === "bubble"
+    || value === "sharp"
+    || value === "trapezoid"
+    || value === "pill"
+    || value === "rail"
+    || value === "ghost";
 }
 
 function isGaugeStyle(value: unknown): value is GaugeStyle {
