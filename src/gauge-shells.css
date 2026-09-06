@@ -3,6 +3,55 @@
    combinations need bespoke treatment so we do not stack a rectangular tile
    behind an already self-contained circular gauge. Loaded after shells.css. */
 
+/* Quota gauges show both sides of the allowance at a glance:
+   - colored fill/ticks = quota remaining
+   - red track = quota already depleted
+   A full allowance covers the red track completely; a zero allowance leaves
+   a fully red gauge instead of disappearing into a neutral gray track. */
+.provider-cell .gauge-classic .ring-track {
+  stroke: var(--orange);
+  stroke-width: 3;
+  opacity: .9;
+}
+
+/* Halo's active ticks carry their remaining-quota color inline and its inactive
+   ticks have no style attribute, so only depleted ticks become red. */
+.provider-cell .gauge-halo line:not([style]) {
+  stroke: var(--orange);
+  opacity: .9;
+}
+
+/* Slim has one headline rail; the remaining fill sits over this red depleted
+   track. !important intentionally beats the component's inline neutral track. */
+.provider-cell .gauge-slim > div[aria-hidden="true"] {
+  background: var(--orange) !important;
+}
+
+/* Stacked, Micro and Columns expose each real quota window as an element with
+   a `... remaining` title. Make the unfilled part of every real meter red. */
+.provider-cell .gauge-stacked span[title$=" remaining"],
+.provider-cell .gauge-micro span[title$=" remaining"],
+.provider-cell .gauge-columns span[title$=" remaining"] {
+  background: var(--orange) !important;
+}
+
+/* Tooltip bars use the same remaining-vs-depleted language. */
+.limit-track {
+  background: var(--orange);
+}
+
+/* Missing quota data is unknown, not depleted. Keep unavailable providers on
+   the neutral track instead of falsely painting them red. */
+.provider-cell[aria-label*="usage unavailable"] .gauge-classic .ring-track {
+  stroke: var(--track);
+}
+.provider-cell[aria-label*="usage unavailable"] .gauge-halo line:not([style]) {
+  stroke: var(--track);
+}
+.provider-cell[aria-label*="usage unavailable"] .gauge-slim > div[aria-hidden="true"] {
+  background: var(--track) !important;
+}
+
 /* Classic + Halo are already complete visual objects. On Dock and Rail they
    should float like dock icons, not sit inside another rounded card. */
 html[data-shell="dock"] .provider-ring.gauge-classic,
