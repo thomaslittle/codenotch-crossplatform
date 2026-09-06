@@ -56,6 +56,10 @@ impl ProviderStore {
             let mut stale = previous.clone();
             stale.status = "stale".into();
             stale.message = snapshot.message;
+            // Activity is ephemeral local state, not part of the durable usage
+            // reading. Never carry a cached `working` spinner forward just
+            // because the live quota refresh failed.
+            stale.activity = snapshot.activity;
             return stale;
         }
         snapshot
