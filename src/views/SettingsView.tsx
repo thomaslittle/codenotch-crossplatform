@@ -299,6 +299,22 @@ export function SettingsView() {
             </div>
           </div>
         </div>
+
+        <div style={{ marginTop: 12 }}>
+          <p className="appearance-label">Gauge accent <output>{settings.accent.toUpperCase()}</output></p>
+          <div className="color-row">
+            <input
+              type="color"
+              className="surface-picker"
+              value={settings.accent}
+              aria-label="Gauge accent color"
+              onChange={(event) => update({ ...settings, accent: event.target.value })}
+            />
+            <span className="surface-hex">{settings.accent.toUpperCase()}</span>
+          </div>
+          <p className="appearance-label" style={{ marginTop: 6, marginBottom: 0 }}>The gauge length shows quota remaining; the unused track stays neutral.</p>
+        </div>
+
         <div className="appearance-duo">
           <div>
             <p className="appearance-label">Opacity <output>{Math.round(settings.opacity * 100)}%</output></p>
