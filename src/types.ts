@@ -48,7 +48,7 @@ export interface ClientSettings {
   enabledProviders: string[];
   /** Named color/surface preset; `custom` preserves the freeform appearance controls. */
   theme: ThemePresetId;
-  /** Outer notch body/silhouette treatment. */
+  /** Outer notch body/silhouette treatment, including the floating Dock style. */
   shellStyle: ShellStyle;
   /** Provider gauge/layout treatment. */
   gaugeStyle: GaugeStyle;
