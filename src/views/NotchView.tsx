@@ -1,7 +1,7 @@
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ComponentProps, MouseEvent } from "react";
+import type { ComponentProps, CSSProperties, MouseEvent } from "react";
 import {
   autohideSupported,
   cursorOverOverlay,
@@ -22,13 +22,32 @@ import { checkForUpdates } from "../lib/updates";
 import { bandFor, resolveSurface, themeVars, useSystemLight } from "../lib/theme";
 import { clamp01, formatPercent, headlineWindow } from "../lib/usage";
 import { ProviderLogo } from "../components/ProviderLogo";
-import type { Edge, GaugeStyle, ProviderSnapshot } from "../types";
+import type { Edge, GaugeStyle, LimitWindow, ProviderSnapshot } from "../types";
 
 const ringSize = 44;
 const classicTrackStroke = 5.8;
 const classicProgressStroke = 3;
 const classicRadius = (ringSize - classicTrackStroke) / 2;
 const classicCircumference = 2 * Math.PI * classicRadius;
+
+function isCompactGauge(style: GaugeStyle): boolean {
+  return style === "stacked" || style === "columns" || style === "micro";
+}
+
+function compactLabel(window: LimitWindow): string {
+  const id = window.id.toLowerCase();
+  const label = window.label.toLowerCase();
+  if (id.includes("week") || label.includes("week")) return "W";
+  if (id.includes("month") || label.includes("month")) return "M";
+  if (id.includes("day") || label.includes("day")) return "D";
+  if (id.includes("rolling") || label.includes("current")) return "C";
+  if (label.includes("5h") || label.includes("5 h") || label.includes("5 hour")) return "5";
+  return window.label.trim().slice(0, 1).toUpperCase() || "•";
+}
+
+function visibleWindows(snapshot: ProviderSnapshot): LimitWindow[] {
+  return snapshot.windows.slice(0, 3);
+}
 
 function ActivityOverlay({ snapshot }: { snapshot: ProviderSnapshot }) {
   if (!snapshot.activity || snapshot.activity.state === "idle") return null;
@@ -44,7 +63,37 @@ function ActivityOverlay({ snapshot }: { snapshot: ProviderSnapshot }) {
   );
 }
 
-function ProviderRing({
+function GaugeBar({ window, surface, height = 3 }: { window: LimitWindow; surface: string; height?: number }) {
+  const fraction = clamp01(window.usedFraction);
+  const color = bandFor(surface, fraction);
+  return (
+    <span
+      title={`${window.label}: ${formatPercent(fraction)} used`}
+      style={{
+        display: "block",
+        position: "relative",
+        width: "100%",
+        height,
+        overflow: "hidden",
+        borderRadius: 999,
+        background: "var(--track)",
+      }}
+    >
+      <span
+        style={{
+          display: "block",
+          width: `${fraction * 100}%`,
+          height: "100%",
+          borderRadius: 999,
+          background: color,
+          transition: "width 420ms cubic-bezier(.22,.8,.2,1), background 220ms ease",
+        }}
+      />
+    </span>
+  );
+}
+
+function ProviderGauge({
   snapshot,
   surface,
   gaugeStyle,
@@ -53,12 +102,13 @@ function ProviderRing({
   surface: string;
   gaugeStyle: GaugeStyle;
 }) {
-  const window = headlineWindow(snapshot);
-  const used = window?.usedFraction;
+  const headline = headlineWindow(snapshot);
+  const used = headline?.usedFraction;
   const fraction = clamp01(used ?? 0);
   const isWaiting = snapshot.activity?.state === "waiting";
   const color = bandFor(surface, isWaiting ? 1 : fraction);
   const stale = snapshot.status === "stale" || snapshot.status === "error";
+  const windows = visibleWindows(snapshot);
 
   if (gaugeStyle === "slim") {
     return (
@@ -125,6 +175,66 @@ function ProviderRing({
     );
   }
 
+  if (gaugeStyle === "stacked") {
+    return (
+      <div className={`provider-ring gauge-stacked ${stale ? "is-stale" : ""}`}>
+        <span
+          aria-hidden="true"
+          style={{ position: "absolute", top: 1, left: 0, right: 0, height: 18, display: "grid", placeItems: "center", color: "var(--text)" }}
+        >
+          <ProviderLogo id={snapshot.id} glyph={snapshot.glyph} size={15} />
+        </span>
+        <span style={{ position: "absolute", left: 3, right: 3, bottom: 3, display: "grid", gap: 2.5 }} aria-hidden="true">
+          {windows.length ? windows.map((window) => (
+            <span key={window.id} style={{ display: "grid", gridTemplateColumns: "7px 1fr", alignItems: "center", gap: 2 }}>
+              <span style={{ color: "var(--faint)", fontSize: 6.5, lineHeight: 1, fontWeight: 750, textAlign: "center" }}>{compactLabel(window)}</span>
+              <GaugeBar window={window} surface={surface} height={3} />
+            </span>
+          )) : <span style={{ height: 3, borderRadius: 999, background: "var(--track)" }} />}
+        </span>
+        <ActivityOverlay snapshot={snapshot} />
+      </div>
+    );
+  }
+
+  if (gaugeStyle === "columns") {
+    return (
+      <div className={`provider-ring gauge-columns ${stale ? "is-stale" : ""}`}>
+        <span
+          aria-hidden="true"
+          style={{ position: "absolute", top: 1, left: 0, right: 0, height: 17, display: "grid", placeItems: "center", color: "var(--text)" }}
+        >
+          <ProviderLogo id={snapshot.id} glyph={snapshot.glyph} size={14} />
+        </span>
+        <span aria-hidden="true" style={{ position: "absolute", left: 8, right: 8, bottom: 3, height: 20, display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 4 }}>
+          {(windows.length ? windows : [{ id: "empty", label: "—", usedFraction: 0 }]).map((window) => {
+            const value = clamp01(window.usedFraction);
+            return (
+              <span key={window.id} title={`${window.label}: ${formatPercent(value)} used`} style={{ width: 5, height: 18, borderRadius: 999, background: "var(--track)", overflow: "hidden", display: "flex", alignItems: "flex-end" }}>
+                <span style={{ width: "100%", height: `${Math.max(value * 100, value > 0 ? 8 : 0)}%`, borderRadius: 999, background: bandFor(surface, value), transition: "height 420ms cubic-bezier(.22,.8,.2,1), background 220ms ease" }} />
+              </span>
+            );
+          })}
+        </span>
+        <ActivityOverlay snapshot={snapshot} />
+      </div>
+    );
+  }
+
+  if (gaugeStyle === "micro") {
+    return (
+      <div className={`provider-ring gauge-micro ${stale ? "is-stale" : ""}`}>
+        <span aria-hidden="true" style={{ position: "absolute", left: 2, top: 0, bottom: 0, width: 16, display: "grid", placeItems: "center", color: "var(--text)" }}>
+          <ProviderLogo id={snapshot.id} glyph={snapshot.glyph} size={13} />
+        </span>
+        <span aria-hidden="true" style={{ position: "absolute", left: 20, right: 2, top: "50%", transform: "translateY(-50%)", display: "grid", gap: 3 }}>
+          {windows.length ? windows.map((window) => <GaugeBar key={window.id} window={window} surface={surface} height={2.5} />) : <span style={{ height: 2.5, borderRadius: 999, background: "var(--track)" }} />}
+        </span>
+        <ActivityOverlay snapshot={snapshot} />
+      </div>
+    );
+  }
+
   return (
     <div className={`provider-ring gauge-classic ${stale ? "is-stale" : ""}`}>
       <svg className="ring-svg" viewBox="0 0 44 44" aria-hidden="true">
@@ -170,15 +280,23 @@ function ProviderCell({
   onHover: (snapshot: ProviderSnapshot, index: number) => void;
   onLeave: () => void;
 }) {
-  const used = headlineWindow(snapshot)?.usedFraction;
+  const headlineUsed = headlineWindow(snapshot)?.usedFraction;
+  const compact = isCompactGauge(gaugeStyle);
+  const usageSummary = snapshot.windows.length
+    ? snapshot.windows.slice(0, 3).map((window) => `${window.label} ${formatPercent(window.usedFraction)} used`).join(", ")
+    : headlineUsed == null ? "usage unavailable" : `${formatPercent(headlineUsed)} used`;
   const slide = edge === "right" || edge === "left"
     ? { x: 0, y: 12 }
     : { x: 12, y: 0 };
+  const compactCellStyle: CSSProperties | undefined = compact
+    ? { width: 44, minWidth: 44, height: 44, gap: 0 }
+    : undefined;
   return (
     <motion.button
       type="button"
-      className="provider-cell"
-      aria-label={`${snapshot.displayName} ${used == null ? "usage unavailable" : `${formatPercent(used)} used`}`}
+      className={`provider-cell${compact ? " is-compact" : ""}`}
+      style={compactCellStyle}
+      aria-label={`${snapshot.displayName} ${usageSummary}`}
       onMouseEnter={() => onHover(snapshot, index)}
       onMouseLeave={onLeave}
       onFocus={() => onHover(snapshot, index)}
@@ -192,8 +310,8 @@ function ProviderCell({
       whileTap={{ scale: 0.94 }}
       transition={{ type: "spring", stiffness: 420, damping: 26, delay: Math.min(index * 0.05, 0.25) }}
     >
-      <ProviderRing snapshot={snapshot} surface={surface} gaugeStyle={gaugeStyle} />
-      <span className="provider-percent">{used == null ? (snapshot.displayValue ?? "—") : formatPercent(used)}</span>
+      <ProviderGauge snapshot={snapshot} surface={surface} gaugeStyle={gaugeStyle} />
+      {!compact && <span className="provider-percent">{headlineUsed == null ? (snapshot.displayValue ?? "—") : formatPercent(headlineUsed)}</span>}
     </motion.button>
   );
 }
@@ -226,17 +344,13 @@ export function NotchView() {
   const surface = resolveSurface(settings.mode, settings.surface, sysLight, settings.theme);
   const shellStyle = { ...themeVars(surface), zoom: settings.scale, opacity: settings.opacity };
   const leaveTimer = useRef<number | null>(null);
-  // Invalidates in-flight tooltip hide timers (see `leave`).
   const leaveGen = useRef(0);
   const autoHideTimer = useRef<number | null>(null);
   const autoHideGen = useRef(0);
-  // Invalidates stale motion completions across rapid retract/peek cycles.
   const retractGen = useRef(0);
-  // Currently visible tooltip card, if any. Used to skip redundant re-shows
-  // and to give a freshly shown card a grace period against spurious
-  // leave/enter pairs from window activation.
   const tipRef = useRef<{ id: string; at: number } | null>(null);
   const edge = settings.edge;
+  const compactGauge = isCompactGauge(settings.gaugeStyle);
 
   const enabled = useMemo(
     () => snapshots.filter((item) => settings.enabledProviders.includes(item.id)),
@@ -268,7 +382,6 @@ export function NotchView() {
   const peek = useCallback(async () => {
     cancelAutoHide();
     const gen = ++retractGen.current;
-    // Native click-through must be disabled before the shell moves back in.
     await setNotchRetracted(false, edge);
     if (gen !== retractGen.current) return;
     setRetracted(false);
@@ -304,8 +417,6 @@ export function NotchView() {
   }, [autoHideAvailable, cancelAutoHide, retract, retracted, settings.autoHide, settings.autoHideDelaySec]);
 
   useEffect(() => {
-    // Any notch move invalidates tooltip placement and any hidden transform.
-    // Restore native input first, then move the fully visible window.
     leaveGen.current++;
     tipRef.current = null;
     void hideTooltip();
@@ -322,9 +433,10 @@ export function NotchView() {
         settings.monitor,
         settings.offsetX,
         settings.offsetY,
+        compactGauge,
       );
     })();
-  }, [cancelAutoHide, edge, enabled.length, settings.scale, settings.monitor, settings.offsetX, settings.offsetY]);
+  }, [cancelAutoHide, compactGauge, edge, enabled.length, settings.scale, settings.monitor, settings.offsetX, settings.offsetY]);
 
   useEffect(() => {
     if (!settings.autoHide && retracted) void peek();
@@ -348,7 +460,6 @@ export function NotchView() {
       void (async () => {
         try {
           const inside = await cursorOverTooltipArea();
-          // A newer leave/hover superseded this timer while verifying.
           if (gen !== leaveGen.current) return;
           if (inside) {
             leave();
@@ -383,29 +494,23 @@ export function NotchView() {
     leaveGen.current++;
     if (leaveTimer.current != null) window.clearTimeout(leaveTimer.current);
     void trace(`enter ${snapshot.id} ${index}`);
-    // Same card already visible: skip the re-show (prevents show/hide flapping).
     if (tipRef.current?.id === snapshot.id) return;
     tipRef.current = { id: snapshot.id, at: Date.now() };
     setHoveredId(snapshot.id);
     if (runningInTauri()) {
       void emitTo("tooltip", "tooltip:show", { snapshot, edge, index });
     }
-    void showTooltip(edge, index, settings.scale).catch(() => {
+    void showTooltip(edge, index, settings.scale, compactGauge).catch(() => {
       tipRef.current = null;
     });
   };
 
-  // Launch + edge-switch entrance: the shell glides in from its edge while
-  // the cells stagger (the window itself snaps on edge switches; keying the
-  // stack by edge replays the stagger as a crossfade).
   const enterFrom =
     edge === "right" ? { x: 36, y: 0 }
     : edge === "left" ? { x: -36, y: 0 }
     : edge === "top" ? { x: 0, y: -36 }
     : { x: 0, y: 36 };
 
-  // T0 verified that Chromium's CSS zoom scales transforms, so these stay in
-  // design pixels. Multiplying by settings.scale here would double-scale.
   const hideOffset =
     edge === "right" ? { x: 64, y: 0 }
     : edge === "left" ? { x: -64, y: 0 }
@@ -464,9 +569,15 @@ export function NotchView() {
     );
   }
 
+  const stackStyle: CSSProperties | undefined = compactGauge
+    ? (edge === "right" || edge === "left"
+      ? { gap: 12, padding: "16px 11px 14px" }
+      : { gap: 12, padding: "7px 14px 8px 16px" })
+    : undefined;
+
   return (
     <motion.main {...shellMotionProps}>
-      <div key={`${edge}-${enabled.length}`} className="provider-stack">
+      <div key={`${edge}-${enabled.length}-${settings.gaugeStyle}`} className="provider-stack" style={stackStyle}>
         {enabled.map((snapshot, index) => (
           <ProviderCell
             key={snapshot.id}
@@ -484,7 +595,7 @@ export function NotchView() {
         {updateAvailable && <span className="orb-update" aria-label="Update available" />}
         <svg className="orb-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v-.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
       </button>
     </motion.main>
