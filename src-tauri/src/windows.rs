@@ -16,6 +16,11 @@ const HORIZONTAL_CELL: f64 = 48.0;
 const GAP: f64 = 31.0;
 const START_PAD: f64 = 26.0;
 const END_PAD: f64 = 19.0;
+const COMPACT_CELL: f64 = 44.0;
+const COMPACT_HORIZONTAL_CELL: f64 = 44.0;
+const COMPACT_GAP: f64 = 12.0;
+const COMPACT_START_PAD: f64 = 16.0;
+const COMPACT_END_PAD: f64 = 14.0;
 const TOOLTIP_W: f64 = 270.0;
 const TOOLTIP_H: f64 = 280.0;
 const AUTODETECT_POLL_MS: u64 = 120;
@@ -96,15 +101,25 @@ fn clamp_scale(scale: f64) -> f64 {
     scale.clamp(0.5, 2.0)
 }
 
-fn side_length(count: usize, scale: f64) -> f64 {
+fn layout_metrics(compact: bool) -> (f64, f64, f64, f64, f64) {
+    if compact {
+        (COMPACT_START_PAD, COMPACT_END_PAD, COMPACT_CELL, COMPACT_HORIZONTAL_CELL, COMPACT_GAP)
+    } else {
+        (START_PAD, END_PAD, CELL, HORIZONTAL_CELL, GAP)
+    }
+}
+
+fn side_length(count: usize, scale: f64, compact: bool) -> f64 {
     let count = count.max(1) as f64;
-    let (curl, start, end, cell, gap) = (CURL * scale, START_PAD * scale, END_PAD * scale, CELL * scale, GAP * scale);
+    let (start_pad, end_pad, cell, _, gap) = layout_metrics(compact);
+    let (curl, start, end, cell, gap) = (CURL * scale, start_pad * scale, end_pad * scale, cell * scale, gap * scale);
     curl * 2.0 + start + end + count * cell + (count - 1.0) * gap
 }
 
-fn horizontal_length(count: usize, scale: f64) -> f64 {
+fn horizontal_length(count: usize, scale: f64, compact: bool) -> f64 {
     let count = count.max(1) as f64;
-    let (curl, start, end, cell, gap) = (CURL * scale, START_PAD * scale, END_PAD * scale, HORIZONTAL_CELL * scale, GAP * scale);
+    let (start_pad, end_pad, _, horizontal_cell, gap) = layout_metrics(compact);
+    let (curl, start, end, cell, gap) = (CURL * scale, start_pad * scale, end_pad * scale, horizontal_cell * scale, gap * scale);
     curl * 2.0 + start + end + count * cell + (count - 1.0) * gap
 }
 
@@ -116,6 +131,7 @@ pub fn place_notch(
     monitor: &str,
     offset_x: f64,
     offset_y: f64,
+    compact: bool,
 ) -> Result<(), String> {
     let window = app.get_webview_window("notch").ok_or("Notch window missing")?;
     let s = clamp_scale(scale);
@@ -124,19 +140,19 @@ pub fn place_notch(
     let horizontal_depth = HORIZONTAL_DEPTH * s;
     let (w, h, mut x, mut y) = match edge {
         Edge::Right => {
-            let h = side_length(count, s).min(mh - 32.0);
+            let h = side_length(count, s, compact).min(mh - 32.0);
             (side_depth, h, mx + mw - side_depth, my + (mh - h) / 2.0)
         }
         Edge::Left => {
-            let h = side_length(count, s).min(mh - 32.0);
+            let h = side_length(count, s, compact).min(mh - 32.0);
             (side_depth, h, mx, my + (mh - h) / 2.0)
         }
         Edge::Top => {
-            let w = horizontal_length(count, s).min(mw - 32.0);
+            let w = horizontal_length(count, s, compact).min(mw - 32.0);
             (w, horizontal_depth, mx + (mw - w) / 2.0, my)
         }
         Edge::Bottom => {
-            let w = horizontal_length(count, s).min(mw - 32.0);
+            let w = horizontal_length(count, s, compact).min(mw - 32.0);
             (w, horizontal_depth, mx + (mw - w) / 2.0, my + mh - horizontal_depth)
         }
     };
@@ -156,7 +172,7 @@ pub fn place_notch(
     Ok(())
 }
 
-pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64) -> Result<(), String> {
+pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64, compact: bool) -> Result<(), String> {
     let notch = app.get_webview_window("notch").ok_or("Notch window missing")?;
     let tooltip = app.get_webview_window("tooltip").ok_or("Tooltip window missing")?;
     let factor = notch.scale_factor().map_err(|e| e.to_string())?;
@@ -168,6 +184,7 @@ pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64
     let nh = s.height as f64 / factor;
     tooltip.set_size(Size::Logical(LogicalSize::new(TOOLTIP_W, TOOLTIP_H))).map_err(|e| e.to_string())?;
     let k = clamp_scale(notch_scale);
+    let (start_pad, _, cell, horizontal_cell, gap) = layout_metrics(compact);
     // Clamp inside the monitor the notch is actually on. Secondary monitors
     // live at negative offsets, so clamping to 0,0 strands the card on the
     // primary display.
@@ -182,13 +199,13 @@ pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64
 
     let (x, y) = match edge {
         Edge::Right | Edge::Left => {
-            let center = (CURL + START_PAD + index as f64 * (CELL + GAP) + RING / 2.0) * k;
+            let center = (CURL + start_pad + index as f64 * (cell + gap) + cell / 2.0) * k;
             let y = (ny + center - TOOLTIP_H / 2.0).clamp(my, (my + mh - TOOLTIP_H).max(my));
             let x = match edge { Edge::Right => nx - TOOLTIP_W + 9.0, _ => nx + nw - 9.0 };
             (x, y)
         }
         Edge::Top | Edge::Bottom => {
-            let center = (CURL + START_PAD + index as f64 * (HORIZONTAL_CELL + GAP) + RING / 2.0) * k;
+            let center = (CURL + start_pad + index as f64 * (horizontal_cell + gap) + horizontal_cell / 2.0) * k;
             let x = (nx + center - TOOLTIP_W / 2.0).clamp(mx, (mx + mw - TOOLTIP_W).max(mx));
             let y = match edge { Edge::Top => ny + nh - 9.0, _ => ny - TOOLTIP_H + 9.0 };
             (x, y)
