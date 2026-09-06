@@ -48,7 +48,7 @@ export interface ClientSettings {
   enabledProviders: string[];
   /** Named color/surface preset; `custom` preserves the freeform appearance controls. */
   theme: ThemePresetId;
-  /** Outer notch body/silhouette treatment, including the floating Dock style. */
+  /** Outer notch body/silhouette treatment, including floating dock styles. */
   shellStyle: ShellStyle;
   /** Provider gauge/layout treatment. */
   gaugeStyle: GaugeStyle;
@@ -73,7 +73,8 @@ export interface ClientSettings {
 
 export type ThemeMode = "dark" | "light" | "system";
 export type ThemePresetId = "custom" | "midnight" | "graphite" | "abyss" | "forest" | "plum";
-export type ShellStyle = "tab" | "bubble" | "sharp" | "trapezoid" | "pill" | "rail" | "dock" | "ghost";
+/** `rail` remains accepted only so old saved settings can migrate cleanly. */
+export type ShellStyle = "tab" | "bubble" | "sharp" | "trapezoid" | "pill" | "rail" | "dock" | "dock3d" | "ghost";
 export type GaugeStyle = "classic" | "slim" | "halo" | "stacked" | "columns" | "micro";
 
 export interface MonitorInfo {
