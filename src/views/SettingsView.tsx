@@ -411,10 +411,10 @@ export function SettingsView() {
         transition={{ duration: 0.25, delay: 0.22, ease: "easeOut" }}
       >
         <h2>How readings work</h2>
-        <p>Codex reads local rollout logs. Cursor uses its local state database. Claude uses Claude Code&apos;s OAuth credential. OpenCode polls Zen usage with your saved API key. Antigravity reads its OS-keyring login. This app never writes provider credentials.</p>
+        <p>Codex asks its local app server for live account limits and falls back to rollout logs. Cursor uses its local state database. Claude uses Claude Code&apos;s OAuth credential. OpenCode polls Zen usage with your saved API key. Antigravity reads its OS-keyring login. This app never writes provider credentials.</p>
       </motion.section>
       <footer className="settings-footer">
-        <span>Windows + Linux clean-room port · v0.3.0</span>
+        <span>Windows + Linux clean-room port · v0.3.1</span>
         <span className="footer-links">
           <button type="button" className="reset-link" onClick={() => void openExternal(REPO_URL)}>
             GitHub
