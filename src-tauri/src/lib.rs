@@ -4,8 +4,14 @@ mod windows;
 
 use model::ProviderSnapshot;
 use providers::ProviderStore;
+use std::sync::atomic::AtomicBool;
 use tauri::{Emitter, Manager, State, WindowEvent};
 use windows::Edge;
+
+#[derive(Default)]
+pub(crate) struct AutohideState {
+    pub(crate) retracted: AtomicBool,
+}
 
 #[tauri::command]
 async fn get_snapshots(store: State<'_, ProviderStore>) -> Result<Vec<ProviderSnapshot>, String> {
@@ -45,6 +51,22 @@ fn hide_window(app: tauri::AppHandle, label: String) -> Result<(), String> {
 #[tauri::command]
 fn cursor_over_tooltip_area(app: tauri::AppHandle) -> Result<Option<bool>, String> {
     Ok(windows::cursor_inside_notch_or_tooltip(&app))
+}
+
+#[tauri::command]
+fn set_notch_retracted(app: tauri::AppHandle, retracted: bool, edge: Edge) -> Result<(), String> {
+    windows::set_notch_retracted(&app, retracted, edge)
+}
+
+/// `None` means cursor position could not be determined on this system.
+#[tauri::command]
+fn cursor_over_overlay(app: tauri::AppHandle) -> Result<Option<bool>, String> {
+    Ok(windows::cursor_inside_overlay(&app))
+}
+
+#[tauri::command]
+fn autohide_supported() -> bool {
+    windows::autohide_supported()
 }
 
 /// Temporary hover diagnostic (removed once the no-popover fault is found).
@@ -93,7 +115,13 @@ fn app_action(app: tauri::AppHandle, action: String) -> Result<(), String> {
         "settings" => windows::open_settings(&app),
         "quit" => { app.exit(0); Ok(()) }
         "hide-hour" => {
-            if let Some(notch) = app.get_webview_window("notch") { notch.hide().map_err(|e| e.to_string())?; }
+            // Clear native click-through state before hiding. The event resets
+            // the frontend transform too, so the notch returns fully visible.
+            let _ = windows::set_notch_retracted(&app, false, Edge::Right);
+            let _ = app.emit_to("notch", "notch:peek", ());
+            if let Some(notch) = app.get_webview_window("notch") {
+                notch.hide().map_err(|e| e.to_string())?;
+            }
             let handle = app.clone();
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_secs(60 * 60)).await;
@@ -118,9 +146,11 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(ProviderStore::default())
+        .manage(AutohideState::default())
         .invoke_handler(tauri::generate_handler![
             get_snapshots, set_edge, show_tooltip, hide_window, open_settings,
             show_context_menu, app_action, open_url, cursor_over_tooltip_area,
+            set_notch_retracted, cursor_over_overlay, autohide_supported,
             list_monitors, fit_settings, trace
         ])
         .on_window_event(|window, event| {
