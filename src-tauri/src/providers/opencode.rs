@@ -97,12 +97,14 @@ fn credential_from_auth(root: &Value) -> Option<SavedCredential> {
     // connected, but retain the legacy `opencode` fallback because the same
     // account key may already be present there from an older setup.
     for provider_id in ["opencode-go", "opencode"] {
-        let key = root
+        if let Some(key) = root
             .get(provider_id)
             .and_then(|entry| entry.get("key"))
             .and_then(Value::as_str)
-            .filter(|key| !key.is_empty())?;
-        return Some(SavedCredential { key: key.to_owned(), provider_id });
+            .filter(|key| !key.is_empty())
+        {
+            return Some(SavedCredential { key: key.to_owned(), provider_id });
+        }
     }
     None
 }
