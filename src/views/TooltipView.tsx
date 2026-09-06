@@ -86,7 +86,7 @@ export function TooltipView() {
             <span className="used-copy">{formatPercent(window.usedFraction)} Used</span>
           </motion.div>
         )) : (
-          <p className="status-copy">{snapshot.message ?? "No usage window is available yet."}</p>
+          <p className="status-copy">{snapshot.message ?? (snapshot.status === "ok" ? "No usage window is available yet." : snapshot.status)}</p>
         )}
         {snapshot.activity && snapshot.activity.state !== "idle" && (
           <div className={`activity-row state-${snapshot.activity.state}`}>
@@ -94,7 +94,7 @@ export function TooltipView() {
             <span>{snapshot.activity.label ?? (snapshot.activity.state === "working" ? "Working now" : "Waiting on you")}</span>
           </div>
         )}
-        {snapshot.status !== "ok" && <p className="status-copy">{snapshot.message ?? snapshot.status}</p>}
+        {snapshot.status !== "ok" && snapshot.windows.length > 0 && <p className="status-copy">{snapshot.message ?? snapshot.status}</p>}
         </motion.section>
       </AnimatePresence>
     </main>
