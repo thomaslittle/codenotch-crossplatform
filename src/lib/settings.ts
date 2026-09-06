@@ -93,14 +93,8 @@ function isEdge(value: unknown): value is Edge {
 }
 
 function isShellStyle(value: unknown): value is ShellStyle {
-  return value === "tab"
-    || value === "bubble"
-    || value === "sharp"
-    || value === "trapezoid"
-    || value === "pill"
-    || value === "rail"
-    || value === "dock"
-    || value === "ghost";
+  const styles: readonly ShellStyle[] = ["tab", "bubble", "sharp", "trapezoid", "pill", "rail", "dock", "ghost"];
+  return typeof value === "string" && styles.includes(value as ShellStyle);
 }
 
 function isGaugeStyle(value: unknown): value is GaugeStyle {
