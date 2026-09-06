@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS: ClientSettings = {
   gaugeStyle: "classic",
   mode: "system",
   surface: "#000000",
+  accent: "#4da3ff",
   opacity: 1,
   scale: 1,
   offsetX: 0,
@@ -26,9 +27,10 @@ function clampNumber(value: unknown, min: number, max: number, fallback: number)
     : fallback;
 }
 
-function applyShellStyle(style: ShellStyle): void {
+function applyAppearance(shellStyle: ShellStyle, accent: string): void {
   if (typeof document !== "undefined") {
-    document.documentElement.dataset.shell = style;
+    document.documentElement.dataset.shell = shellStyle;
+    document.documentElement.style.setProperty("--accent", accent);
   }
 }
 
@@ -36,7 +38,7 @@ export function loadSettings(): ClientSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      applyShellStyle(DEFAULT_SETTINGS.shellStyle);
+      applyAppearance(DEFAULT_SETTINGS.shellStyle, DEFAULT_SETTINGS.accent);
       return DEFAULT_SETTINGS;
     }
     const parsed = JSON.parse(raw) as Partial<ClientSettings>;
@@ -58,6 +60,7 @@ export function loadSettings(): ClientSettings {
     if (theme !== "custom") {
       surface = getThemePreset(theme).surface;
     }
+    const accent = isSurface(parsed.accent) ? parsed.accent : DEFAULT_SETTINGS.accent;
     const opacity = clampNumber(parsed.opacity, 0, 1, DEFAULT_SETTINGS.opacity);
     const scale = clampNumber(parsed.scale, 0.7, 1.3, DEFAULT_SETTINGS.scale);
     const offsetX = clampNumber(parsed.offsetX, -200, 200, DEFAULT_SETTINGS.offsetX);
@@ -73,6 +76,7 @@ export function loadSettings(): ClientSettings {
       gaugeStyle,
       mode,
       surface,
+      accent,
       opacity,
       scale,
       offsetX,
@@ -81,16 +85,16 @@ export function loadSettings(): ClientSettings {
       autoHide,
       autoHideDelaySec,
     };
-    applyShellStyle(shellStyle);
+    applyAppearance(shellStyle, accent);
     return settings;
   } catch {
-    applyShellStyle(DEFAULT_SETTINGS.shellStyle);
+    applyAppearance(DEFAULT_SETTINGS.shellStyle, DEFAULT_SETTINGS.accent);
     return DEFAULT_SETTINGS;
   }
 }
 
 export function saveSettings(settings: ClientSettings): void {
-  applyShellStyle(settings.shellStyle);
+  applyAppearance(settings.shellStyle, settings.accent);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
