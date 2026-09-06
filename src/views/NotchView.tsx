@@ -19,8 +19,8 @@ import {
 } from "../lib/backend";
 import { loadSettings } from "../lib/settings";
 import { checkForUpdates } from "../lib/updates";
-import { bandFor, resolveSurface, themeVars, useSystemLight } from "../lib/theme";
-import { clamp01, formatPercent, headlineWindow } from "../lib/usage";
+import { bandForRemaining, resolveSurface, themeVars, useSystemLight } from "../lib/theme";
+import { clamp01, formatPercent, headlineWindow, remainingFraction } from "../lib/usage";
 import { ProviderLogo } from "../components/ProviderLogo";
 import type { Edge, GaugeStyle, LimitWindow, ProviderSnapshot, ShellStyle } from "../types";
 
@@ -79,11 +79,11 @@ function ActivityOverlay({ snapshot }: { snapshot: ProviderSnapshot }) {
 }
 
 function GaugeBar({ window, surface, height = 3 }: { window: LimitWindow; surface: string; height?: number }) {
-  const fraction = clamp01(window.usedFraction);
-  const color = bandFor(surface, fraction);
+  const fraction = remainingFraction(window.usedFraction);
+  const color = bandForRemaining(surface, fraction);
   return (
     <span
-      title={`${window.label}: ${formatPercent(fraction)} used`}
+      title={`${window.label}: ${formatPercent(fraction)} remaining`}
       style={{
         display: "block",
         position: "relative",
@@ -119,9 +119,8 @@ function ProviderGauge({
 }) {
   const headline = headlineWindow(snapshot);
   const used = headline?.usedFraction;
-  const fraction = clamp01(used ?? 0);
-  const isWaiting = snapshot.activity?.state === "waiting";
-  const color = bandFor(surface, isWaiting ? 1 : fraction);
+  const fraction = used == null ? 0 : remainingFraction(used);
+  const color = bandForRemaining(surface, fraction);
   const stale = snapshot.status === "stale" || snapshot.status === "error";
   const windows = visibleWindows(snapshot);
 
@@ -222,11 +221,11 @@ function ProviderGauge({
           <ProviderLogo id={snapshot.id} glyph={snapshot.glyph} size={14} />
         </span>
         <span aria-hidden="true" style={{ position: "absolute", left: 8, right: 8, bottom: 3, height: 20, display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 4 }}>
-          {(windows.length ? windows : [{ id: "empty", label: "—", usedFraction: 0 }]).map((window) => {
-            const value = clamp01(window.usedFraction);
+          {(windows.length ? windows : [{ id: "empty", label: "—", usedFraction: 1 }]).map((window) => {
+            const value = remainingFraction(window.usedFraction);
             return (
-              <span key={window.id} title={`${window.label}: ${formatPercent(value)} used`} style={{ width: 5, height: 18, borderRadius: 999, background: "var(--track)", overflow: "hidden", display: "flex", alignItems: "flex-end" }}>
-                <span style={{ width: "100%", height: `${Math.max(value * 100, value > 0 ? 8 : 0)}%`, borderRadius: 999, background: bandFor(surface, value), transition: "height 420ms cubic-bezier(.22,.8,.2,1), background 220ms ease" }} />
+              <span key={window.id} title={`${window.label}: ${formatPercent(value)} remaining`} style={{ width: 5, height: 18, borderRadius: 999, background: "var(--track)", overflow: "hidden", display: "flex", alignItems: "flex-end" }}>
+                <span style={{ width: "100%", height: `${Math.max(value * 100, value > 0 ? 8 : 0)}%`, borderRadius: 999, background: bandForRemaining(surface, value), transition: "height 420ms cubic-bezier(.22,.8,.2,1), background 220ms ease" }} />
               </span>
             );
           })}
@@ -298,10 +297,11 @@ function ProviderCell({
   onLeave: () => void;
 }) {
   const headlineUsed = headlineWindow(snapshot)?.usedFraction;
+  const headlineRemaining = headlineUsed == null ? null : remainingFraction(headlineUsed);
   const compact = isCompactGauge(gaugeStyle);
   const usageSummary = snapshot.windows.length
-    ? snapshot.windows.slice(0, 3).map((window) => `${window.label} ${formatPercent(window.usedFraction)} used`).join(", ")
-    : headlineUsed == null ? "usage unavailable" : `${formatPercent(headlineUsed)} used`;
+    ? snapshot.windows.slice(0, 3).map((window) => `${window.label} ${formatPercent(remainingFraction(window.usedFraction))} remaining`).join(", ")
+    : headlineRemaining == null ? "usage unavailable" : `${formatPercent(headlineRemaining)} remaining`;
   const slide = edge === "right" || edge === "left"
     ? { x: 0, y: 12 }
     : { x: 12, y: 0 };
@@ -328,7 +328,7 @@ function ProviderCell({
       transition={{ type: "spring", stiffness: 420, damping: 26, delay: Math.min(index * 0.05, 0.25) }}
     >
       <ProviderGauge snapshot={snapshot} surface={surface} gaugeStyle={gaugeStyle} />
-      {!compact && <span className="provider-percent">{headlineUsed == null ? (snapshot.displayValue ?? "—") : formatPercent(headlineUsed)}</span>}
+      {!compact && <span className="provider-percent">{headlineRemaining == null ? (snapshot.displayValue ?? "—") : formatPercent(headlineRemaining)}</span>}
     </motion.button>
   );
 }
@@ -583,7 +583,7 @@ export function NotchView() {
         <button className="settings-orb empty" type="button" onClick={() => void openSettings()} aria-label="Settings">
           <svg className="orb-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v-.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z" />
           </svg>
         </button>
       </motion.main>
