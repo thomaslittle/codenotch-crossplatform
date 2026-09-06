@@ -44,6 +44,7 @@ describe("settings", () => {
   it("uses defaults when storage is empty", () => {
     expect(loadSettings()).toMatchObject({
       theme: DEFAULT_SETTINGS.theme,
+      shellStyle: DEFAULT_SETTINGS.shellStyle,
       gaugeStyle: DEFAULT_SETTINGS.gaugeStyle,
       autoHide: DEFAULT_SETTINGS.autoHide,
       autoHideDelaySec: DEFAULT_SETTINGS.autoHideDelaySec,
@@ -64,6 +65,7 @@ describe("settings", () => {
       edge: "left",
       scale: 0.9,
       theme: "custom",
+      shellStyle: "tab",
       gaugeStyle: "classic",
       autoHide: false,
       autoHideDelaySec: 5,
@@ -81,6 +83,16 @@ describe("settings", () => {
   it("falls back from unknown theme ids", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme: "unknown" }));
     expect(loadSettings().theme).toBe("custom");
+  });
+
+  it("persists every supported shell style and rejects unknown ones", () => {
+    for (const shellStyle of ["tab", "bubble", "sharp", "trapezoid", "pill", "rail", "ghost"] as const) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellStyle }));
+      expect(loadSettings().shellStyle).toBe(shellStyle);
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellStyle: "glass" }));
+    expect(loadSettings().shellStyle).toBe("tab");
   });
 
   it("persists every supported gauge style and rejects unknown ones", () => {
