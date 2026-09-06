@@ -14,10 +14,10 @@ const shellStyles: Array<{ id: ShellStyle; label: string; description: string }>
   { id: "tab", label: "Tab", description: "The original moulded screen-edge tab." },
   { id: "bubble", label: "Bubble", description: "Separate rounded provider bubbles with no shared body." },
   { id: "sharp", label: "Sharp", description: "Crisp rectangular body with minimal rounding." },
-  { id: "trapezoid", label: "Trapezoid", description: "Angled inner edge for a more technical silhouette." },
+  { id: "trapezoid", label: "Trapezoid", description: "A clean tapered wedge with a flat screen edge." },
   { id: "pill", label: "Pill", description: "Soft capsule body with strong rounded corners." },
-  { id: "rail", label: "Rail", description: "Thin guide rail with compact glass gauge nodes." },
-  { id: "dock", label: "Dock", description: "Floating translucent desktop dock with rounded glass chrome and hover magnification." },
+  { id: "dock", label: "Glass Dock", description: "Floating translucent dock with soft glass chrome and hover magnification." },
+  { id: "dock3d", label: "3D Dock", description: "Classic OS X-inspired perspective shelf with a metallic lip and icon lift." },
   { id: "ghost", label: "Ghost", description: "No shared background — gauges float directly over the desktop." },
 ];
 const gaugeStyles: Array<{ id: GaugeStyle; label: string; description: string }> = [
