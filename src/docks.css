@@ -48,6 +48,8 @@ html[data-shell="dock3d"] .notch-shell::before,
 html[data-shell="dock3d"] .notch-shell::after {
   display: block;
   background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-position: center;
   border-radius: 0;
 }
 
@@ -68,6 +70,7 @@ html[data-shell="dock3d"] .edge-bottom::before {
   box-shadow: 0 -1px 0 rgba(0,0,0,.34) inset, 0 10px 22px rgba(0,0,0,.34);
 }
 html[data-shell="dock3d"] .edge-bottom::after {
+  top: auto;
   left: calc(var(--curl) - 4px);
   right: calc(var(--curl) - 4px);
   bottom: 2px;
@@ -95,6 +98,7 @@ html[data-shell="dock3d"] .edge-top::before {
   box-shadow: 0 1px 0 rgba(0,0,0,.34) inset, 0 -10px 22px rgba(0,0,0,.34);
 }
 html[data-shell="dock3d"] .edge-top::after {
+  bottom: auto;
   left: calc(var(--curl) - 4px);
   right: calc(var(--curl) - 4px);
   top: 2px;
@@ -120,6 +124,7 @@ html[data-shell="dock3d"] .edge-right::before {
   box-shadow: -8px 0 20px rgba(0,0,0,.3);
 }
 html[data-shell="dock3d"] .edge-right::after {
+  left: auto;
   top: calc(var(--curl) - 4px);
   bottom: calc(var(--curl) - 4px);
   right: 2px;
@@ -142,6 +147,7 @@ html[data-shell="dock3d"] .edge-left::before {
   box-shadow: 8px 0 20px rgba(0,0,0,.3);
 }
 html[data-shell="dock3d"] .edge-left::after {
+  right: auto;
   top: calc(var(--curl) - 4px);
   bottom: calc(var(--curl) - 4px);
   left: 2px;
@@ -159,7 +165,13 @@ html[data-shell="dock3d"] .provider-ring {
   backdrop-filter: none;
   filter: drop-shadow(0 5px 4px rgba(0,0,0,.55));
   transform: scale(.92);
+  -webkit-box-reflect: none;
+}
+html[data-shell="dock3d"] .edge-bottom .provider-ring {
   -webkit-box-reflect: below -7px linear-gradient(to bottom, rgba(255,255,255,.18), transparent 42%);
+}
+html[data-shell="dock3d"] .edge-top .provider-ring {
+  -webkit-box-reflect: above -7px linear-gradient(to top, rgba(255,255,255,.18), transparent 42%);
 }
 html[data-shell="dock3d"] .provider-percent {
   font-size: 12px;
