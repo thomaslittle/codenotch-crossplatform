@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 import "./shells.css";
+import "./gauge-shells.css";
 import "./settings.css";
 import { ContextMenuView } from "./views/ContextMenuView";
 import { NotchView } from "./views/NotchView";
