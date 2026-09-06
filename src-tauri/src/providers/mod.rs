@@ -4,11 +4,13 @@ mod codex;
 mod cursor;
 mod opencode;
 
-use crate::model::ProviderSnapshot;
+use crate::model::{ActivitySummary, ProviderSnapshot};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::time::SystemTime;
+use walkdir::WalkDir;
 
 pub struct ProviderStore {
     last_good: Mutex<HashMap<String, ProviderSnapshot>>,
@@ -58,8 +60,13 @@ impl ProviderStore {
             stale.message = snapshot.message;
             // Activity is ephemeral local state, not part of the durable usage
             // reading. Never carry a cached `working` spinner forward just
-            // because the live quota refresh failed.
-            stale.activity = snapshot.activity;
+            // because the live quota refresh failed. Claude's local activity
+            // remains available even when its usage endpoint is unavailable.
+            stale.activity = if stale.id == "claude" {
+                claude_activity()
+            } else {
+                snapshot.activity
+            };
             return stale;
         }
         snapshot
@@ -71,4 +78,23 @@ impl ProviderStore {
         let Ok(text) = serde_json::to_string(cache) else { return };
         let _ = fs::write(&self.cache_path, text);
     }
+}
+
+fn claude_config_dir() -> PathBuf {
+    std::env::var_os("CLAUDE_SECURESTORAGE_CONFIG_DIR").map(PathBuf::from)
+        .or_else(|| std::env::var_os("CLAUDE_CONFIG_DIR").map(PathBuf::from))
+        .or_else(|| dirs::home_dir().map(|home| home.join(".claude")))
+        .unwrap_or_else(|| PathBuf::from(".claude"))
+}
+
+/// Lightweight local activity signal used to update the spinner and trigger a
+/// usage refresh at the beginning/end of a Claude turn without polling the
+/// Anthropic usage endpoint every few seconds.
+pub(crate) fn claude_activity() -> Option<ActivitySummary> {
+    let projects = claude_config_dir().join("projects");
+    let newest = WalkDir::new(projects).max_depth(5).into_iter().filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_file() && entry.path().extension().is_some_and(|ext| ext == "jsonl"))
+        .filter_map(|entry| entry.metadata().ok()?.modified().ok()).max()?;
+    let age = SystemTime::now().duration_since(newest).ok()?.as_secs();
+    (age <= 8).then(|| ActivitySummary { state: "working".into(), label: Some("Working now".into()) })
 }
