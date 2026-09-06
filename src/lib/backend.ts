@@ -87,11 +87,41 @@ export async function hideTooltip(): Promise<void> {
  * Is the OS cursor inside the notch or tooltip window? `null` means unknown
  * (caller keeps the plain timeout behavior).
  */
-export async function cursorOverTooltipArea(): Promise<boolean | null> {  if (!runningInTauri()) return null;
+export async function cursorOverTooltipArea(): Promise<boolean | null> {
+  if (!runningInTauri()) return null;
   try {
     return await invoke<boolean | null>("cursor_over_tooltip_area");
   } catch {
     return null;
+  }
+}
+
+export async function setNotchRetracted(retracted: boolean, edge: Edge): Promise<void> {
+  if (!runningInTauri()) return;
+  try {
+    await invoke("set_notch_retracted", { retracted, edge });
+  } catch (error) {
+    console.error("[codenotch] set_notch_retracted failed:", error);
+  }
+}
+
+/** Is the cursor over any auxiliary overlay that should keep the notch visible? */
+export async function cursorOverOverlay(): Promise<boolean | null> {
+  if (!runningInTauri()) return null;
+  try {
+    return await invoke<boolean | null>("cursor_over_overlay");
+  } catch {
+    return null;
+  }
+}
+
+/** Whether this platform can reliably find the cursor for auto-hide peeking. */
+export async function autohideSupported(): Promise<boolean> {
+  if (!runningInTauri()) return false;
+  try {
+    return await invoke<boolean>("autohide_supported");
+  } catch {
+    return false;
   }
 }
 
