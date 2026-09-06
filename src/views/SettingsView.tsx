@@ -18,6 +18,7 @@ const shellStyles: Array<{ id: ShellStyle; label: string; description: string }>
   { id: "trapezoid", label: "Trapezoid", description: "Angled inner edge for a more technical silhouette." },
   { id: "pill", label: "Pill", description: "Soft capsule body with strong rounded corners." },
   { id: "rail", label: "Rail", description: "Thin dock rail behind the gauges for a compact look." },
+  { id: "dock", label: "Dock", description: "Floating translucent desktop dock with rounded glass chrome." },
   { id: "ghost", label: "Ghost", description: "No shared background — gauges float directly over the desktop." },
 ];
 const gaugeStyles: Array<{ id: GaugeStyle; label: string; description: string }> = [
