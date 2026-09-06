@@ -22,9 +22,10 @@ export async function setEdge(
   monitor: string,
   offsetX: number,
   offsetY: number,
+  compact = false,
 ): Promise<void> {
   if (!runningInTauri()) return;
-  await throttledInvoke("set_edge", { edge, providerCount, scale, monitor, offsetX, offsetY });
+  await throttledInvoke("set_edge", { edge, providerCount, scale, monitor, offsetX, offsetY, compact });
 }
 
 // Window placement invokes are throttled (leading + trailing): slider drags
@@ -68,10 +69,10 @@ export async function fitSettings(height: number): Promise<void> {
   await invoke("fit_settings", { height }).catch(() => undefined);
 }
 
-export async function showTooltip(edge: Edge, index: number, scale: number): Promise<void> {
+export async function showTooltip(edge: Edge, index: number, scale: number, compact = false): Promise<void> {
   if (!runningInTauri()) return;
   try {
-    await invoke("show_tooltip", { edge, index, scale });
+    await invoke("show_tooltip", { edge, index, scale, compact });
   } catch (error) {
     console.error("[codenotch] show_tooltip failed:", error);
     throw error;
