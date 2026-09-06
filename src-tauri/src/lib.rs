@@ -171,6 +171,23 @@ pub fn run() {
                 tokio::time::sleep(std::time::Duration::from_millis(120)).await;
                 let _ = windows::place_notch(&handle, Edge::Right, 5, 1.0, "primary", 0.0, 0.0, false);
             });
+
+            // Claude writes local JSONL session files as it works. Watch only
+            // that cheap local signal and ask the existing frontend to do one
+            // normal provider refresh when the state changes. This makes usage
+            // catch up at turn boundaries without hammering provider APIs.
+            let activity_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let mut was_working = providers::claude_activity().is_some();
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    let working = providers::claude_activity().is_some();
+                    if working != was_working {
+                        was_working = working;
+                        let _ = activity_handle.emit_to("notch", "app:refresh", ());
+                    }
+                }
+            });
             Ok(())
         })
         .run(tauri::generate_context!())
