@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import type { ThemeMode, ThemePresetId } from "../types";
-import { availabilityBand, usageBand } from "./usage";
+import { usageBand } from "./usage";
 
 export const DARK_SURFACE = "#000000";
 export const LIGHT_SURFACE = "#eef0f4";
@@ -72,7 +72,7 @@ function surfaceBands(surface: string): { ok: string; warn: string; crit: string
     : { ok: "#00a35c", warn: "#9a8c00", crit: "#e63e00" };
 }
 
-/** Usage band color that stays readable on the given surface. */
+/** Legacy usage-band color helper retained for status/diagnostic visuals. */
 export function bandFor(surface: string, fraction: number): string {
   const bands = surfaceBands(surface);
   switch (usageBand(fraction)) {
@@ -83,15 +83,12 @@ export function bandFor(surface: string, fraction: number): string {
   }
 }
 
-/** Remaining-quota color: healthy/full is green, depleted is red. */
-export function bandForRemaining(surface: string, fraction: number): string {
-  const bands = surfaceBands(surface);
-  switch (availabilityBand(fraction)) {
-    case "ample": return bands.ok;
-    case "watch": return bands.warn;
-    case "critical":
-    case "exhausted": return bands.crit;
-  }
+/**
+ * Quota gauges use one user-selected accent. Remaining quota is communicated
+ * by fill length; the neutral track communicates the depleted portion.
+ */
+export function bandForRemaining(_surface: string, _fraction: number): string {
+  return "var(--accent)";
 }
 
 /** Follows the OS light/dark preference; updates live on change. */
@@ -124,8 +121,8 @@ export function resolveSurface(
  * CSS variables consumed by styles.css. Surfaces are always solid here —
  * translucency comes from the element-level `opacity` style so the whole
  * notch (rings, glyphs, labels) fades together down to fully invisible.
- * Text and bands auto-contrast against the surface so any picker color
- * stays readable.
+ * Text auto-contrasts against the surface; the gauge accent is applied by
+ * the persisted settings loader on each webview root.
  */
 export function themeVars(surface: string): CSSProperties {
   const base = isSurface(surface) ? surface : DARK_SURFACE;
