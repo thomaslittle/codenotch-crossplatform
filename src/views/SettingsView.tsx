@@ -7,10 +7,15 @@ import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "../lib/settings";
 import { DARK_SURFACE, LIGHT_SURFACE, THEME_PRESETS, surfaceLuminance, themeVars, useSystemLight } from "../lib/theme";
 import { checkForUpdates, type UpdateInfo } from "../lib/updates";
 import { ProviderLogo } from "../components/ProviderLogo";
-import type { ClientSettings, Edge, MonitorInfo, ProviderSnapshot, ThemeMode } from "../types";
+import type { ClientSettings, Edge, GaugeStyle, MonitorInfo, ProviderSnapshot, ThemeMode } from "../types";
 
 const edges: Edge[] = ["right", "left", "top", "bottom"];
 const modes: ThemeMode[] = ["dark", "light", "system"];
+const gaugeStyles: Array<{ id: GaugeStyle; label: string; description: string }> = [
+  { id: "classic", label: "Classic", description: "The original balanced usage ring." },
+  { id: "slim", label: "Slim", description: "A lighter, thinner gauge treatment." },
+  { id: "halo", label: "Halo", description: "A brighter gauge with a soft usage glow." },
+];
 const autoHideDelays = [2, 5, 10, 30];
 
 const rise = {
@@ -286,6 +291,20 @@ export function SettingsView() {
               />
               {preset.label}
             </motion.button>
+          ))}
+        </div>
+        <p className="appearance-label" style={{ marginTop: 12 }}>Gauge</p>
+        <div className="mode-segmented">
+          {gaugeStyles.map((gauge) => (
+            <motion.button
+              key={gauge.id}
+              type="button"
+              className={settings.gaugeStyle === gauge.id ? "is-selected" : ""}
+              title={gauge.description}
+              onClick={() => update({ ...settings, gaugeStyle: gauge.id })}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 500, damping: 25 }}
+            >{gauge.label}</motion.button>
           ))}
         </div>
         <div className="appearance-duo">
