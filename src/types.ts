@@ -73,7 +73,7 @@ export interface ClientSettings {
 
 export type ThemeMode = "dark" | "light" | "system";
 export type ThemePresetId = "custom" | "midnight" | "graphite" | "abyss" | "forest" | "plum";
-export type ShellStyle = "tab" | "bubble" | "sharp" | "trapezoid" | "pill" | "rail" | "ghost";
+export type ShellStyle = "tab" | "bubble" | "sharp" | "trapezoid" | "pill" | "rail" | "dock" | "ghost";
 export type GaugeStyle = "classic" | "slim" | "halo" | "stacked" | "columns" | "micro";
 
 export interface MonitorInfo {
