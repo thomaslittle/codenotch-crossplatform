@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { autohideSupported, REPO_URL, fitSettings, getSnapshots, hideWindow, listMonitors, openExternal, runningInTauri } from "../lib/backend";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "../lib/settings";
-import { DARK_SURFACE, LIGHT_SURFACE, surfaceLuminance, themeVars, useSystemLight } from "../lib/theme";
+import { DARK_SURFACE, LIGHT_SURFACE, THEME_PRESETS, surfaceLuminance, themeVars, useSystemLight } from "../lib/theme";
 import { checkForUpdates, type UpdateInfo } from "../lib/updates";
 import { ProviderLogo } from "../components/ProviderLogo";
 import type { ClientSettings, Edge, MonitorInfo, ProviderSnapshot, ThemeMode } from "../types";
@@ -257,6 +257,37 @@ export function SettingsView() {
         transition={{ duration: 0.25, delay: 0.15, ease: "easeOut" }}
       >
         <h2>Appearance</h2>
+        <p className="appearance-label">Theme</p>
+        <div className="mode-segmented">
+          {THEME_PRESETS.map((preset) => (
+            <motion.button
+              key={preset.id}
+              type="button"
+              className={settings.theme === preset.id ? "is-selected" : ""}
+              title={preset.description}
+              onClick={() => update(preset.id === "custom"
+                ? { ...settings, theme: "custom" }
+                : { ...settings, theme: preset.id, mode: "dark", surface: preset.surface })}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 500, damping: 25 }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  display: "inline-block",
+                  width: 8,
+                  height: 8,
+                  marginRight: 6,
+                  borderRadius: "50%",
+                  background: preset.id === "custom" ? "linear-gradient(135deg, #fff 0 50%, #000 50%)" : preset.surface,
+                  border: "1px solid currentColor",
+                  verticalAlign: "-1px",
+                }}
+              />
+              {preset.label}
+            </motion.button>
+          ))}
+        </div>
         <div className="appearance-duo">
           <div>
             <p className="appearance-label">Mode</p>
@@ -265,9 +296,10 @@ export function SettingsView() {
                 <motion.button
                   key={mode}
                   type="button"
-                  className={settings.mode === mode ? "is-selected" : ""}
+                  className={settings.mode === mode && settings.theme === "custom" ? "is-selected" : ""}
                   onClick={() => update({
                     ...settings,
+                    theme: "custom",
                     mode,
                     // Modes own their surface: picking one resets any custom
                     // color so dark/light/system always look intentional.
@@ -291,6 +323,7 @@ export function SettingsView() {
                   const value = event.target.value;
                   update({
                     ...settings,
+                    theme: "custom",
                     surface: value,
                     mode: surfaceLuminance(value) > 0.5 ? "light" : "dark",
                   });
