@@ -42,8 +42,6 @@ fn primary_rect(app: &AppHandle) -> Result<(f64, f64, f64, f64), String> {
     Ok(monitor_rect(&monitor))
 }
 
-/// Resolve `"primary"` or a monitor index (see `list_monitors`) to logical
-/// geometry, falling back to the primary monitor.
 fn target_rect(app: &AppHandle, monitor: &str) -> Result<(f64, f64, f64, f64), String> {
     if monitor != "primary" {
         if let Ok(index) = monitor.parse::<usize>() {
@@ -156,16 +154,10 @@ pub fn place_notch(
             (w, horizontal_depth, mx + (mw - w) / 2.0, my + mh - horizontal_depth)
         }
     };
-    // User nudge, then clamp so the window always keeps a grabbable strip
-    // on-screen. The margin shrinks for narrow windows so an edge-docked
-    // notch still sits perfectly flush at any scale.
     let margin_x = 80.0_f64.min(w);
     let margin_y = 80.0_f64.min(h);
     x = (x + offset_x.clamp(-2000.0, 2000.0)).clamp(mx - w + margin_x, mx + mw - margin_x);
     y = (y + offset_y.clamp(-2000.0, 2000.0)).clamp(my - h + margin_y, my + mh - margin_y);
-    // Snap, don't glide: per-frame IPC window moves cost a full repaint each
-    // and can never hold 60fps. All motion stays in compositor-friendly
-    // transform/opacity inside the webview (see the React entrance springs).
     window.set_size(Size::Logical(LogicalSize::new(w, h))).map_err(|e| e.to_string())?;
     window.set_position(Position::Logical(LogicalPosition::new(x, y))).map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())?;
@@ -185,9 +177,6 @@ pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64
     tooltip.set_size(Size::Logical(LogicalSize::new(TOOLTIP_W, TOOLTIP_H))).map_err(|e| e.to_string())?;
     let k = clamp_scale(notch_scale);
     let (start_pad, _, cell, horizontal_cell, gap) = layout_metrics(compact);
-    // Clamp inside the monitor the notch is actually on. Secondary monitors
-    // live at negative offsets, so clamping to 0,0 strands the card on the
-    // primary display.
     let (mx, my, mw, mh) = notch
         .current_monitor()
         .ok()
@@ -199,13 +188,13 @@ pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64
 
     let (x, y) = match edge {
         Edge::Right | Edge::Left => {
-            let center = (CURL + start_pad + index as f64 * (cell + gap) + cell / 2.0) * k;
+            let center = (CURL + start_pad + index as f64 * (cell + gap) + RING / 2.0) * k;
             let y = (ny + center - TOOLTIP_H / 2.0).clamp(my, (my + mh - TOOLTIP_H).max(my));
             let x = match edge { Edge::Right => nx - TOOLTIP_W + 9.0, _ => nx + nw - 9.0 };
             (x, y)
         }
         Edge::Top | Edge::Bottom => {
-            let center = (CURL + start_pad + index as f64 * (horizontal_cell + gap) + horizontal_cell / 2.0) * k;
+            let center = (CURL + start_pad + index as f64 * (horizontal_cell + gap) + RING / 2.0) * k;
             let x = (nx + center - TOOLTIP_W / 2.0).clamp(mx, (mx + mw - TOOLTIP_W).max(mx));
             let y = match edge { Edge::Top => ny + nh - 9.0, _ => ny - TOOLTIP_H + 9.0 };
             (x, y)
@@ -218,9 +207,6 @@ pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64
 
 pub fn open_settings(app: &AppHandle) -> Result<(), String> {
     let window = app.get_webview_window("settings").ok_or("Settings window missing")?;
-    // Enforce size before centering so the window can never open half
-    // off-screen from a stale size. Center twice: set_size applies
-    // asynchronously, so the first center may still see the old size.
     window.center().map_err(|e| e.to_string())?;
     window.set_size(Size::Logical(LogicalSize::new(620.0, 660.0))).map_err(|e| e.to_string())?;
     window.center().map_err(|e| e.to_string())?;
@@ -252,13 +238,6 @@ pub fn place_context_menu(app: &AppHandle, edge: Edge, notch_scale: f64) -> Resu
     Ok(())
 }
 
-/// Is the OS cursor inside the notch or tooltip window right now?
-///
-/// Showing a top-level window can deliver a spurious `mouseleave` to the
-/// notch webview even when the cursor never moved. The frontend asks this
-/// before hiding the tooltip so a phantom leave can't blink it away.
-/// Returns `None` when the position can't be determined (non-Windows or any
-/// OS call fails) so the caller falls back to the plain timeout behavior.
 pub fn cursor_inside_notch_or_tooltip(app: &AppHandle) -> Option<bool> {
     #[cfg(target_os = "windows")]
     {
@@ -267,13 +246,11 @@ pub fn cursor_inside_notch_or_tooltip(app: &AppHandle) -> Option<bool> {
             let window = app.get_webview_window(label)?;
             let position = window.outer_position().ok()?;
             let size = window.outer_size().ok()?;
-            // Skip hidden windows (outer rects are meaningless while hidden).
             if !window.is_visible().unwrap_or(false) {
                 continue;
             }
             let (x, y) = (position.x, position.y);
             let (w, h) = (size.width as i32, size.height as i32);
-            // Small forgiveness margin so edge pixels still count as inside.
             if cx >= x - 2 && cx < x + w + 2 && cy >= y - 2 && cy < y + h + 2 {
                 return Some(true);
             }
@@ -287,7 +264,6 @@ pub fn cursor_inside_notch_or_tooltip(app: &AppHandle) -> Option<bool> {
     }
 }
 
-/// Is the cursor over an auxiliary window that should postpone auto-hide?
 pub fn cursor_inside_overlay(app: &AppHandle) -> Option<bool> {
     let (cx, cy) = cursor_position_global()?;
     for label in ["tooltip", "context-menu", "settings"] {
@@ -311,16 +287,10 @@ pub fn cursor_inside_overlay(app: &AppHandle) -> Option<bool> {
 #[cfg(target_os = "windows")]
 pub fn cursor_position_global() -> Option<(i32, i32)> {
     #[repr(C)]
-    struct Point {
-        x: i32,
-        y: i32,
-    }
+    struct Point { x: i32, y: i32 }
     #[link(name = "user32")]
-    extern "system" {
-        fn GetCursorPos(point: *mut Point) -> i32;
-    }
+    extern "system" { fn GetCursorPos(point: *mut Point) -> i32; }
     let mut point = Point { x: 0, y: 0 };
-    // SAFETY: GetCursorPos only writes the two ints through the pointer.
     let ok = unsafe { GetCursorPos(&mut point) };
     (ok != 0).then_some((point.x, point.y))
 }
@@ -351,9 +321,6 @@ mod x11 {
 
     pub fn display() -> Option<*mut c_void> {
         let cached = DISPLAY.get_or_init(|| {
-            // Keep one Xlib connection for the process lifetime. Closing it while
-            // another poll is reading the pointer would be less safe than this tiny
-            // intentional process-lifetime allocation.
             let display = unsafe { XOpenDisplay(std::ptr::null()) };
             (!display.is_null()).then_some(display as usize)
         });
@@ -370,8 +337,6 @@ mod x11 {
         let mut win_x = 0;
         let mut win_y = 0;
         let mut mask = 0;
-        // SAFETY: all pointers target initialized stack values and `display`
-        // is cached for the full process lifetime.
         let ok = unsafe {
             XQueryPointer(
                 display,
@@ -390,58 +355,28 @@ mod x11 {
 }
 
 #[cfg(target_os = "linux")]
-pub fn cursor_position_global() -> Option<(i32, i32)> {
-    x11::cursor_position()
-}
+pub fn cursor_position_global() -> Option<(i32, i32)> { x11::cursor_position() }
 
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-pub fn cursor_position_global() -> Option<(i32, i32)> {
-    None
-}
+pub fn cursor_position_global() -> Option<(i32, i32)> { None }
 
 pub fn autohide_supported() -> bool {
     #[cfg(target_os = "windows")]
-    {
-        return true;
-    }
+    { return true; }
     #[cfg(target_os = "linux")]
-    {
-        return x11::display().is_some();
-    }
+    { return x11::display().is_some(); }
     #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-    {
-        false
-    }
+    { false }
 }
 
-/// Return the physical-pixel hotspot band along the docked edge.
-pub fn hotspot_rect(
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-    edge: Edge,
-    depth_phys: i32,
-) -> (i32, i32, i32, i32) {
+pub fn hotspot_rect(x: i32, y: i32, w: i32, h: i32, edge: Edge, depth_phys: i32) -> (i32, i32, i32, i32) {
     let w = w.max(0);
     let h = h.max(0);
     match edge {
-        Edge::Right => {
-            let depth = depth_phys.clamp(0, w);
-            (x + w - depth, y, depth, h)
-        }
-        Edge::Left => {
-            let depth = depth_phys.clamp(0, w);
-            (x, y, depth, h)
-        }
-        Edge::Top => {
-            let depth = depth_phys.clamp(0, h);
-            (x, y, w, depth)
-        }
-        Edge::Bottom => {
-            let depth = depth_phys.clamp(0, h);
-            (x, y + h - depth, w, depth)
-        }
+        Edge::Right => { let depth = depth_phys.clamp(0, w); (x + w - depth, y, depth, h) }
+        Edge::Left => { let depth = depth_phys.clamp(0, w); (x, y, depth, h) }
+        Edge::Top => { let depth = depth_phys.clamp(0, h); (x, y, w, depth) }
+        Edge::Bottom => { let depth = depth_phys.clamp(0, h); (x, y + h - depth, w, depth) }
     }
 }
 
@@ -453,9 +388,7 @@ fn point_in_rect(px: i32, py: i32, rect: (i32, i32, i32, i32)) -> bool {
 pub fn set_notch_retracted(app: &AppHandle, retracted: bool, edge: Edge) -> Result<(), String> {
     let state = app.state::<crate::AutohideState>();
     let previous = state.retracted.swap(retracted, Ordering::AcqRel);
-    if previous == retracted {
-        return Ok(());
-    }
+    if previous == retracted { return Ok(()); }
 
     let window = app.get_webview_window("notch").ok_or_else(|| {
         state.retracted.store(previous, Ordering::Release);
@@ -466,9 +399,7 @@ pub fn set_notch_retracted(app: &AppHandle, retracted: bool, edge: Edge) -> Resu
         return Err(error.to_string());
     }
 
-    if retracted {
-        spawn_retract_poll(app.clone(), edge);
-    }
+    if retracted { spawn_retract_poll(app.clone(), edge); }
     Ok(())
 }
 
@@ -476,37 +407,18 @@ fn spawn_retract_poll(app: AppHandle, edge: Edge) {
     tauri::async_runtime::spawn(async move {
         loop {
             tokio::time::sleep(std::time::Duration::from_millis(AUTODETECT_POLL_MS)).await;
-            if !app.state::<crate::AutohideState>().retracted.load(Ordering::Acquire) {
-                break;
-            }
-            let Some(window) = app.get_webview_window("notch") else {
-                break;
-            };
-            if !window.is_visible().unwrap_or(false) {
-                break;
-            }
-            let Some((cx, cy)) = cursor_position_global() else {
-                continue;
-            };
-            let Ok(position) = window.outer_position() else {
-                continue;
-            };
-            let Ok(size) = window.outer_size() else {
-                continue;
-            };
-            let Ok(scale_factor) = window.scale_factor() else {
-                continue;
-            };
+            if !app.state::<crate::AutohideState>().retracted.load(Ordering::Acquire) { break; }
+            let Some(window) = app.get_webview_window("notch") else { break; };
+            if !window.is_visible().unwrap_or(false) { break; }
+            let Some((cx, cy)) = cursor_position_global() else { continue; };
+            let Ok(position) = window.outer_position() else { continue; };
+            let Ok(size) = window.outer_size() else { continue; };
+            let Ok(scale_factor) = window.scale_factor() else { continue; };
             let width = i32::try_from(size.width).unwrap_or(i32::MAX);
             let height = i32::try_from(size.height).unwrap_or(i32::MAX);
             let depth = (SLIVER * 2.0 * scale_factor).round().max(1.0) as i32;
             let hotspot = hotspot_rect(position.x, position.y, width, height, edge, depth);
-            if !point_in_rect(cx, cy, hotspot) {
-                continue;
-            }
-
-            // Re-enable input before telling the webview to spring back in so
-            // the returning shell can receive hover events immediately.
+            if !point_in_rect(cx, cy, hotspot) { continue; }
             if set_notch_retracted(&app, false, edge).is_ok() {
                 let _ = app.emit_to("notch", "notch:peek", ());
                 break;
@@ -515,13 +427,8 @@ fn spawn_retract_poll(app: AppHandle, edge: Edge) {
     });
 }
 
-/// Resize the settings window to fit its content (measured frontend-side),
-/// clamped to the monitor so it can neither scroll nor clip. Never fails
-/// silently: worst case it fits to a sane default cap and logs why.
 pub fn fit_settings(app: &AppHandle, height: f64) -> Result<(), String> {
-    let window = app
-        .get_webview_window("settings")
-        .ok_or("Settings window missing")?;
+    let window = app.get_webview_window("settings").ok_or("Settings window missing")?;
     let mh = window
         .current_monitor()
         .ok()
@@ -535,9 +442,7 @@ pub fn fit_settings(app: &AppHandle, height: f64) -> Result<(), String> {
     let size = window.outer_size().map_err(|e| e.to_string())?;
     let scale = window.scale_factor().map_err(|e| e.to_string())?;
     let w = size.width as f64 / scale;
-    window
-        .set_size(Size::Logical(LogicalSize::new(w, h)))
-        .map_err(|e| e.to_string())?;
+    window.set_size(Size::Logical(LogicalSize::new(w, h))).map_err(|e| e.to_string())?;
     Ok(())
 }
 
