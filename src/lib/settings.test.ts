@@ -83,9 +83,11 @@ describe("settings", () => {
     expect(loadSettings().theme).toBe("custom");
   });
 
-  it("persists valid gauge styles and rejects unknown ones", () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ gaugeStyle: "halo" }));
-    expect(loadSettings().gaugeStyle).toBe("halo");
+  it("persists every supported gauge style and rejects unknown ones", () => {
+    for (const gaugeStyle of ["classic", "slim", "halo", "stacked", "columns", "micro"] as const) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ gaugeStyle }));
+      expect(loadSettings().gaugeStyle).toBe(gaugeStyle);
+    }
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ gaugeStyle: "neon" }));
     expect(loadSettings().gaugeStyle).toBe("classic");
