@@ -44,6 +44,7 @@ describe("settings", () => {
   it("uses defaults when storage is empty", () => {
     expect(loadSettings()).toMatchObject({
       theme: DEFAULT_SETTINGS.theme,
+      gaugeStyle: DEFAULT_SETTINGS.gaugeStyle,
       autoHide: DEFAULT_SETTINGS.autoHide,
       autoHideDelaySec: DEFAULT_SETTINGS.autoHideDelaySec,
     });
@@ -63,6 +64,7 @@ describe("settings", () => {
       edge: "left",
       scale: 0.9,
       theme: "custom",
+      gaugeStyle: "classic",
       autoHide: false,
       autoHideDelaySec: 5,
     });
@@ -79,6 +81,14 @@ describe("settings", () => {
   it("falls back from unknown theme ids", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme: "unknown" }));
     expect(loadSettings().theme).toBe("custom");
+  });
+
+  it("persists valid gauge styles and rejects unknown ones", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ gaugeStyle: "halo" }));
+    expect(loadSettings().gaugeStyle).toBe("halo");
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ gaugeStyle: "neon" }));
+    expect(loadSettings().gaugeStyle).toBe("classic");
   });
 
   it("does not coerce non-boolean autoHide values", () => {
