@@ -1,7 +1,10 @@
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ComponentProps, MouseEvent } from "react";
 import {
+  autohideSupported,
+  cursorOverOverlay,
   cursorOverTooltipArea,
   getSnapshots,
   hideTooltip,
@@ -9,6 +12,7 @@ import {
   openSettings,
   runningInTauri,
   setEdge,
+  setNotchRetracted,
   showContextMenu,
   showTooltip,
   trace,
@@ -110,6 +114,9 @@ export function NotchView() {
   const [settings, setSettings] = useState(loadSettings);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [retracted, setRetracted] = useState(false);
+  const [autoHideAvailable, setAutoHideAvailable] = useState(false);
+
   useEffect(() => {
     let live = true;
     void checkForUpdates()
@@ -117,12 +124,25 @@ export function NotchView() {
       .catch(() => undefined);
     return () => { live = false; };
   }, []);
+
+  useEffect(() => {
+    let live = true;
+    void autohideSupported().then((supported) => {
+      if (live) setAutoHideAvailable(supported);
+    });
+    return () => { live = false; };
+  }, []);
+
   const sysLight = useSystemLight();
   const surface = resolveSurface(settings.mode, settings.surface, sysLight);
   const shellStyle = { ...themeVars(surface), zoom: settings.scale, opacity: settings.opacity };
   const leaveTimer = useRef<number | null>(null);
-  // Invalidates in-flight hide timers (see `leave`).
+  // Invalidates in-flight tooltip hide timers (see `leave`).
   const leaveGen = useRef(0);
+  const autoHideTimer = useRef<number | null>(null);
+  const autoHideGen = useRef(0);
+  // Invalidates stale motion completions across rapid retract/peek cycles.
+  const retractGen = useRef(0);
   // Currently visible tooltip card, if any. Used to skip redundant re-shows
   // and to give a freshly shown card a grace period against spurious
   // leave/enter pairs from window activation.
@@ -148,21 +168,83 @@ export function NotchView() {
     return () => window.clearInterval(id);
   }, [refresh]);
 
+  const cancelAutoHide = useCallback(() => {
+    autoHideGen.current++;
+    if (autoHideTimer.current != null) {
+      window.clearTimeout(autoHideTimer.current);
+      autoHideTimer.current = null;
+    }
+  }, []);
+
+  const peek = useCallback(async () => {
+    cancelAutoHide();
+    const gen = ++retractGen.current;
+    // Native click-through must be disabled before the shell moves back in.
+    await setNotchRetracted(false, edge);
+    if (gen !== retractGen.current) return;
+    setRetracted(false);
+  }, [cancelAutoHide, edge]);
+
+  const retract = useCallback(() => {
+    if (!settings.autoHide || !autoHideAvailable || retracted) return;
+    retractGen.current++;
+    setRetracted(true);
+  }, [autoHideAvailable, retracted, settings.autoHide]);
+
+  const scheduleAutoHide = useCallback(() => {
+    cancelAutoHide();
+    if (!settings.autoHide || !autoHideAvailable || retracted) return;
+    const gen = ++autoHideGen.current;
+
+    const arm = (delayMs: number) => {
+      autoHideTimer.current = window.setTimeout(() => {
+        autoHideTimer.current = null;
+        void (async () => {
+          const overOverlay = await cursorOverOverlay();
+          if (gen !== autoHideGen.current) return;
+          if (overOverlay === true) {
+            arm(1000);
+            return;
+          }
+          retract();
+        })();
+      }, delayMs);
+    };
+
+    arm(settings.autoHideDelaySec * 1000);
+  }, [autoHideAvailable, cancelAutoHide, retract, retracted, settings.autoHide, settings.autoHideDelaySec]);
+
   useEffect(() => {
-    // Any notch move invalidates tooltip placement: drop the card so the next
-    // hover re-anchors it against the new geometry.
+    // Any notch move invalidates tooltip placement and any hidden transform.
+    // Restore native input first, then move the fully visible window.
     leaveGen.current++;
     tipRef.current = null;
     void hideTooltip();
-    void setEdge(
-      edge,
-      Math.max(enabled.length, 1),
-      settings.scale,
-      settings.monitor,
-      settings.offsetX,
-      settings.offsetY,
-    );
-  }, [edge, enabled.length, settings.scale, settings.monitor, settings.offsetX, settings.offsetY]);
+    cancelAutoHide();
+    const gen = ++retractGen.current;
+    void (async () => {
+      await setNotchRetracted(false, edge);
+      if (gen !== retractGen.current) return;
+      setRetracted(false);
+      await setEdge(
+        edge,
+        Math.max(enabled.length, 1),
+        settings.scale,
+        settings.monitor,
+        settings.offsetX,
+        settings.offsetY,
+      );
+    })();
+  }, [cancelAutoHide, edge, enabled.length, settings.scale, settings.monitor, settings.offsetX, settings.offsetY]);
+
+  useEffect(() => {
+    if (!settings.autoHide && retracted) void peek();
+  }, [peek, retracted, settings.autoHide]);
+
+  useEffect(() => () => {
+    cancelAutoHide();
+    if (leaveTimer.current != null) window.clearTimeout(leaveTimer.current);
+  }, [cancelAutoHide]);
 
   const doHide = useCallback(() => {
     tipRef.current = null;
@@ -197,6 +279,7 @@ export function NotchView() {
     const unlisten: Array<() => void> = [];
     void listen("app:refresh", () => void refresh()).then((fn) => unlisten.push(fn));
     void listen("settings:changed", () => setSettings(loadSettings())).then((fn) => unlisten.push(fn));
+    void listen("notch:peek", () => { void peek(); }).then((fn) => unlisten.push(fn));
     void listen("tooltip:hover", () => {
       if (leaveTimer.current != null) window.clearTimeout(leaveTimer.current);
     }).then((fn) => unlisten.push(fn));
@@ -204,7 +287,7 @@ export function NotchView() {
       leave();
     }).then((fn) => unlisten.push(fn));
     return () => unlisten.forEach((fn) => fn());
-  }, [refresh, leave]);
+  }, [refresh, leave, peek]);
 
   const hover = (snapshot: ProviderSnapshot, index: number) => {
     leaveGen.current++;
@@ -231,19 +314,56 @@ export function NotchView() {
     : edge === "top" ? { x: 0, y: -36 }
     : { x: 0, y: 36 };
 
+  // T0 verified that Chromium's CSS zoom scales transforms, so these stay in
+  // design pixels. Multiplying by settings.scale here would double-scale.
+  const hideOffset =
+    edge === "right" ? { x: 64, y: 0 }
+    : edge === "left" ? { x: -64, y: 0 }
+    : edge === "top" ? { x: 0, y: -78 }
+    : { x: 0, y: 78 };
+  const animationGen = retractGen.current;
+
+  const handleShellContextMenu = (event: MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    void showContextMenu(edge, settings.scale);
+  };
+
+  const handleShellMouseEnter = () => {
+    cancelAutoHide();
+    if (retracted) {
+      void peek();
+    } else {
+      retractGen.current++;
+    }
+  };
+
+  const handleShellMouseLeave = () => {
+    setHoveredId(null);
+    scheduleAutoHide();
+  };
+
+  const shellMotionProps: ComponentProps<typeof motion.main> = {
+    className: `notch-shell edge-${edge}`,
+    style: shellStyle,
+    initial: { opacity: 0, ...enterFrom },
+    animate: {
+      opacity: settings.opacity,
+      x: retracted ? hideOffset.x : 0,
+      y: retracted ? hideOffset.y : 0,
+    },
+    transition: { type: "spring", stiffness: 210, damping: 26, opacity: { duration: 0.18 } },
+    onAnimationComplete: () => {
+      if (!retracted || animationGen !== retractGen.current || !settings.autoHide || !autoHideAvailable) return;
+      void setNotchRetracted(true, edge);
+    },
+    onContextMenu: handleShellContextMenu,
+    onMouseEnter: handleShellMouseEnter,
+    onMouseLeave: handleShellMouseLeave,
+  };
+
   if (!enabled.length) {
     return (
-      <motion.main
-        className={`notch-shell edge-${edge}`}
-        style={shellStyle}
-        initial={{ opacity: 0, ...enterFrom }}
-        animate={{ opacity: settings.opacity, x: 0, y: 0 }}
-        transition={{ type: "spring", stiffness: 210, damping: 26, opacity: { duration: 0.18 } }}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          void showContextMenu(edge, settings.scale);
-        }}
-      >
+      <motion.main {...shellMotionProps}>
         <button className="settings-orb empty" type="button" onClick={() => void openSettings()} aria-label="Settings">
           <svg className="orb-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3" />
@@ -255,29 +375,18 @@ export function NotchView() {
   }
 
   return (
-    <motion.main
-      className={`notch-shell edge-${edge}`}
-      style={shellStyle}
-      initial={{ opacity: 0, ...enterFrom }}
-      animate={{ opacity: settings.opacity, x: 0, y: 0 }}
-      transition={{ type: "spring", stiffness: 210, damping: 26, opacity: { duration: 0.18 } }}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        void showContextMenu(edge, settings.scale);
-      }}
-      onMouseLeave={() => setHoveredId(null)}
-    >
+    <motion.main {...shellMotionProps}>
       <div key={`${edge}-${enabled.length}`} className="provider-stack">
         {enabled.map((snapshot, index) => (
-            <ProviderCell
-              key={snapshot.id}
-              snapshot={snapshot}
-              index={index}
-              edge={edge}
-              surface={surface}
-              onHover={hover}
-              onLeave={leave}
-            />
+          <ProviderCell
+            key={snapshot.id}
+            snapshot={snapshot}
+            index={index}
+            edge={edge}
+            surface={surface}
+            onHover={hover}
+            onLeave={leave}
+          />
         ))}
       </div>
       <button className={`settings-orb${hoveredId ? " peek" : ""}`} type="button" onClick={() => void openSettings()} aria-label="Settings">
