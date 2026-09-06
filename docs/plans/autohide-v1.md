@@ -6,7 +6,7 @@ this up at any point — including mid-edit — and continue without re-deriving
 | | |
 |---|---|
 | **Feature** | Notch auto-hide: slides under the screen edge after an idle delay, peeks back out on hover at its resting spot |
-| **Status** | Not started (all tasks `☐`) |
+| **Status** | Implementation complete through T5; verification/manual QA pending |
 | **Last updated** | 2026-09-06 |
 | **Working tree expectation** | Clean at `main` (`3cc3c4b`) when this plan was written |
 | **Progress journal** | Bottom of this document — append an entry every working session |
@@ -251,7 +251,7 @@ npm run tauri dev                # manual QA (real app)
 
 ## 8. Tasks
 
-### T0 — ☐ Verify zoom × transform assumption (R1) — *do this first, it informs T4*
+### T0 — ◐ Verify zoom × transform assumption (R1) — *decision resolved; Tauri spot-check pending*
 
 **Files:** none permanent (scratch edit + revert, or a temporary branch).
 **Spec:** In `NotchView.tsx`, temporarily hard-code the shell's `animate` to
@@ -263,7 +263,7 @@ and the screen edge equals `64 × scale` (zoom scales transforms) or stays `64`
 decision: translate values are design px (zoom scales) or design px × scale (manual).
 T4 consumes this decision.
 
-### T1 — ☐ Settings model
+### T1 — ◐ Settings model — *implemented; gates pending*
 
 **Files:** `src/types.ts`, `src/lib/settings.ts`, `src/lib/settings.test.ts` (new).
 **Spec:**
@@ -277,7 +277,7 @@ T4 consumes this decision.
   NOT count as true). Mirror the import/setup style of `src/lib/usage.test.ts`.
 **Acceptance:** `npm run typecheck && npm test` green.
 
-### T2 — ☐ Frontend bridge functions
+### T2 — ◐ Frontend bridge functions — *implemented; gate pending*
 
 **Files:** `src/lib/backend.ts`.
 **Spec:** Add three wrappers, each with the standard `if (!runningInTauri())` early
@@ -294,7 +294,7 @@ export async function autohideSupported(): Promise<boolean>
 **Acceptance:** `npm run typecheck` green. (Functions unused until T4/T5 — that's fine;
 do not wire them here.)
 
-### T3 — ☐ Rust: state, commands, cursor read, hotspot, poll
+### T3 — ◐ Rust: state, commands, cursor read, hotspot, poll — *implemented; gates pending*
 
 **Files:** `src-tauri/src/windows.rs`, `src-tauri/src/lib.rs`.
 **Spec:**
@@ -330,7 +330,7 @@ do not wire them here.)
 **Acceptance:** `cargo check` + `cargo test` green (hotspot unit tests pass). Frontend
 still typechecks (`npm run typecheck`) — commands unused so far.
 
-### T4 — ☐ NotchView wiring
+### T4 — ◐ NotchView wiring — *implemented; typecheck + manual Tauri QA pending*
 
 **Files:** `src/views/NotchView.tsx`. **Depends on:** T0 (translate decision), T1–T3.
 **Spec:**
@@ -358,7 +358,7 @@ still typechecks (`npm run typecheck`) — commands unused so far.
 **Acceptance:** `npm run typecheck` green; manual `npm run tauri dev`:
 retract + peek works on `right` edge at 100% scale; journal note for R2/R3 outcomes.
 
-### T5 — ☐ Settings UI
+### T5 — ◐ Settings UI — *implemented; typecheck/build/manual persistence QA pending*
 
 **Files:** `src/views/SettingsView.tsx`. **Depends on:** T1, T2.
 **Spec:**
@@ -423,3 +423,24 @@ all four gates (Section 6).
   no existing auto-hide or roadmap mention found. Design settled on window-clip +
   click-through + cursor poll after rejecting window-move (multi-monitor breakage).
   All tasks pending; tree clean at `3cc3c4b`.
+- **2026-09-06 — implementation session** (branch `feat/autohide-v1`). Picked up from
+  plan commit `0ebed25`. T0's core CSS question was measured in a real Chromium layout:
+  `translateX(64px)` produced physical deltas of `64px` at 100% zoom, `44.8px` at 70%,
+  and `83.2px` at 130%. Decision: use the §4.1 design-pixel offsets directly; CSS zoom
+  already scales the transform, so multiplying by `settings.scale` would double-scale.
+  A final Windows Tauri/WebView2 spot-check remains part of T4/T6 QA.
+- **2026-09-06 — T1–T5 code implemented**. Added settings/defaults/clamping + Vitest
+  coverage; frontend bridge wrappers; native `AutohideState`, Windows/X11 cursor reads,
+  four-edge hotspot tests, click-through + 120ms peek poll and commands; shared
+  `NotchView` retract/peek wiring with generation guards and placement reset; and the
+  opt-in Auto-hide settings UI with 2/5/10/30s presets and support gating. Branch head
+  after feature code: `0dd92aafac337715833b46cc60c3f1944fd846c3`. Diff against base is
+  limited to this plan and the T1–T5 files; no unrelated files were changed.
+- **2026-09-06 — verification status / next step**. This session's execution container
+  cannot fetch the GitHub checkout directly and has no Rust toolchain, while repo CI only
+  runs on `main` pushes or pull requests. Therefore **no npm/cargo/Tauri gate is claimed
+  green here**. T1–T5 stay `◐` until a real checkout runs `npm run typecheck`, `npm test`,
+  `npm run build`, `cargo check --manifest-path src-tauri/Cargo.toml`, and
+  `cargo test --manifest-path src-tauri/Cargo.toml`. Then run `npm run tauri dev` and
+  complete T4's right-edge smoke test plus the full Section 9 matrix (especially R2/R3,
+  reduced motion, click-through, and the adjacent-monitor invariant) before T7 docs.
