@@ -1,34 +1,89 @@
-/* Dock-specific presentation, loaded after generic shell + gauge compatibility.
-   Glass Dock remains a modern translucent shelf. 3D Dock deliberately leans
-   into the classic OS X perspective shelf / metallic lip look. */
+/* Dock-specific presentation. These shells own their layout instead of
+   inheriting the original tab's curls, padding, and 31px provider gaps. */
 
-/* GLASS DOCK — give circular gauges more visual breathing room inside the
-   existing native footprint and separate Settings from the provider group. */
-html[data-shell="dock"] .provider-ring.gauge-classic,
-html[data-shell="dock"] .provider-ring.gauge-halo {
-  transform: scale(.93);
+/* --------------------------------------------------------------------------
+   Shared dock anatomy
+   -------------------------------------------------------------------------- */
+html[data-shell="dock"] .provider-cell:not(.is-compact),
+html[data-shell="dock3d"] .provider-cell:not(.is-compact) {
+  width: 52px;
+  min-width: 52px;
+  height: 70px;
+  justify-content: center;
+  gap: 5px;
 }
-html[data-shell="dock"] .provider-cell:has(.gauge-classic):hover .provider-ring,
-html[data-shell="dock"] .provider-cell:has(.gauge-classic):focus-visible .provider-ring,
-html[data-shell="dock"] .provider-cell:has(.gauge-halo):hover .provider-ring,
-html[data-shell="dock"] .provider-cell:has(.gauge-halo):focus-visible .provider-ring {
-  transform: scale(1.12);
+
+html[data-shell="dock"] .edge-top .provider-stack,
+html[data-shell="dock"] .edge-bottom .provider-stack {
+  inset: 0;
+  gap: 10px;
+  padding: 8px 58px 8px 14px;
 }
+html[data-shell="dock"] .edge-left .provider-stack,
+html[data-shell="dock"] .edge-right .provider-stack {
+  inset: 0;
+  gap: 8px;
+  padding: 14px 8px 58px;
+}
+html[data-shell="dock"] .edge-top .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="dock"] .edge-bottom .provider-stack:has(.provider-cell.is-compact) {
+  gap: 8px;
+  padding: 8px 54px 8px 14px;
+}
+html[data-shell="dock"] .edge-left .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="dock"] .edge-right .provider-stack:has(.provider-cell.is-compact) {
+  gap: 8px;
+  padding: 14px 8px 54px;
+}
+
+html[data-shell="dock3d"] .edge-bottom .provider-stack {
+  inset: 0;
+  gap: 7px;
+  padding: 4px 62px 22px 16px;
+}
+html[data-shell="dock3d"] .edge-top .provider-stack {
+  inset: 0;
+  gap: 7px;
+  padding: 22px 62px 4px 16px;
+}
+html[data-shell="dock3d"] .edge-right .provider-stack {
+  inset: 0;
+  gap: 7px;
+  padding: 16px 20px 62px 6px;
+}
+html[data-shell="dock3d"] .edge-left .provider-stack {
+  inset: 0;
+  gap: 7px;
+  padding: 16px 6px 62px 20px;
+}
+html[data-shell="dock3d"] .edge-bottom .provider-stack:has(.provider-cell.is-compact) {
+  padding: 8px 58px 20px 16px;
+}
+html[data-shell="dock3d"] .edge-top .provider-stack:has(.provider-cell.is-compact) {
+  padding: 20px 58px 8px 16px;
+}
+html[data-shell="dock3d"] .edge-right .provider-stack:has(.provider-cell.is-compact) {
+  padding: 16px 18px 58px 8px;
+}
+html[data-shell="dock3d"] .edge-left .provider-stack:has(.provider-cell.is-compact) {
+  padding: 16px 8px 58px 18px;
+}
+
 html[data-shell="dock"] .settings-orb::before,
 html[data-shell="dock3d"] .settings-orb::before {
   content: "";
   position: absolute;
   pointer-events: none;
-  opacity: .45;
-  background: color-mix(in srgb, var(--text) 30%, transparent);
+  background: color-mix(in srgb, var(--text) 32%, transparent);
+  opacity: .42;
 }
 html[data-shell="dock"] .edge-top .settings-orb::before,
 html[data-shell="dock"] .edge-bottom .settings-orb::before,
 html[data-shell="dock3d"] .edge-top .settings-orb::before,
 html[data-shell="dock3d"] .edge-bottom .settings-orb::before {
   width: 1px;
-  height: 31px;
-  left: -9px;
+  height: 34px;
+  left: -8px;
   top: 50%;
   transform: translateY(-50%);
 }
@@ -37,209 +92,330 @@ html[data-shell="dock"] .edge-right .settings-orb::before,
 html[data-shell="dock3d"] .edge-left .settings-orb::before,
 html[data-shell="dock3d"] .edge-right .settings-orb::before {
   height: 1px;
-  width: 31px;
-  top: -9px;
+  width: 34px;
+  top: -8px;
   left: 50%;
   transform: translateX(-50%);
 }
 
-/* 3D DOCK — replace all inherited tab curls with a perspective shelf. */
+/* --------------------------------------------------------------------------
+   GLASS DOCK — modern translucent dock. The body now follows the icon group,
+   including a dedicated Settings slot, instead of spanning tab-era dead space.
+   -------------------------------------------------------------------------- */
+html[data-shell="dock"] .edge-top::before,
+html[data-shell="dock"] .edge-bottom::before {
+  display: block;
+  inset: 5px 3px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--text) 7%, transparent), transparent 38%),
+    color-mix(in srgb, var(--black) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 25px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .28), inset 0 1px 0 color-mix(in srgb, var(--text) 11%, transparent);
+  backdrop-filter: blur(18px) saturate(1.35);
+}
+html[data-shell="dock"] .edge-left::before,
+html[data-shell="dock"] .edge-right::before {
+  display: block;
+  inset: 3px 5px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--text) 7%, transparent), transparent 38%),
+    color-mix(in srgb, var(--black) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 25px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .28), inset 1px 0 0 color-mix(in srgb, var(--text) 11%, transparent);
+  backdrop-filter: blur(18px) saturate(1.35);
+}
+
+/* Circular gauges are the icons. Never put a second card behind them. */
+html[data-shell="dock"] .provider-ring.gauge-classic,
+html[data-shell="dock"] .provider-ring.gauge-halo {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, .5));
+  transform: scale(1.04);
+}
+html[data-shell="dock"] .provider-cell:has(.gauge-classic):hover .provider-ring,
+html[data-shell="dock"] .provider-cell:has(.gauge-classic):focus-visible .provider-ring,
+html[data-shell="dock"] .provider-cell:has(.gauge-halo):hover .provider-ring,
+html[data-shell="dock"] .provider-cell:has(.gauge-halo):focus-visible .provider-ring {
+  transform: scale(1.14);
+}
+html[data-shell="dock"] .provider-cell:hover + .provider-cell .provider-ring,
+html[data-shell="dock"] .provider-cell:has(+ .provider-cell:hover) .provider-ring {
+  transform: scale(1.055);
+}
+html[data-shell="dock"] .provider-percent {
+  font-size: 11px;
+  line-height: 15px;
+  opacity: .94;
+  text-shadow: 0 1px 3px rgba(0,0,0,.72);
+}
+
+/* Compact gauges need local contrast; keep their plate subtle and tight. */
+html[data-shell="dock"] .provider-ring.gauge-slim,
+html[data-shell="dock"] .provider-ring.gauge-stacked,
+html[data-shell="dock"] .provider-ring.gauge-columns,
+html[data-shell="dock"] .provider-ring.gauge-micro {
+  background: color-mix(in srgb, var(--black) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+  border-radius: 10px;
+  box-shadow: 0 3px 8px rgba(0,0,0,.12);
+  backdrop-filter: blur(4px);
+}
+
+html[data-shell="dock"] .settings-orb {
+  width: 38px;
+  height: 38px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+html[data-shell="dock"] .edge-top .settings-orb,
+html[data-shell="dock"] .edge-bottom .settings-orb {
+  right: 10px;
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+}
+html[data-shell="dock"] .edge-right .settings-orb {
+  right: 18px;
+  bottom: 10px;
+}
+html[data-shell="dock"] .edge-left .settings-orb {
+  left: 18px;
+  bottom: 10px;
+}
+html[data-shell="dock"] .settings-orb:hover,
+html[data-shell="dock"] .settings-orb:focus-visible {
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+}
+html[data-shell="dock"] .settings-orb .orb-cog {
+  width: 16px;
+  height: 16px;
+  opacity: .72;
+  transform: none;
+}
+
+/* --------------------------------------------------------------------------
+   3D DOCK — classic OS X-inspired shelf. Icons and shelf are designed as one
+   object: tightly packed icons sit over a perspective top plane and front lip.
+   -------------------------------------------------------------------------- */
 html[data-shell="dock3d"] .notch-shell::before,
 html[data-shell="dock3d"] .notch-shell::after {
   display: block;
+  border-radius: 0;
   background-repeat: no-repeat;
   background-size: 100% 100%;
   background-position: center;
-  border-radius: 0;
 }
 
-/* Bottom: the canonical classic OS X orientation. */
+/* Bottom is the canonical old-OS-X dock orientation. */
 html[data-shell="dock3d"] .edge-bottom::before {
-  left: calc(var(--curl) - 9px);
-  right: calc(var(--curl) - 9px);
-  top: 31px;
-  bottom: 7px;
+  left: 3px;
+  right: 3px;
+  top: 43px;
+  bottom: 8px;
   background-image:
     linear-gradient(180deg,
-      rgba(255,255,255,.42) 0,
-      rgba(255,255,255,.18) 8%,
-      color-mix(in srgb, var(--black) 54%, #8b9098 46%) 40%,
-      color-mix(in srgb, var(--black) 72%, #4f535a 28%) 100%);
-  clip-path: polygon(7% 0, 93% 0, 100% 100%, 0 100%);
-  border-top: 1px solid rgba(255,255,255,.62);
-  box-shadow: 0 -1px 0 rgba(0,0,0,.34) inset, 0 10px 22px rgba(0,0,0,.34);
+      rgba(255,255,255,.54) 0%,
+      rgba(238,241,245,.42) 9%,
+      rgba(142,148,157,.55) 48%,
+      rgba(66,70,77,.72) 100%);
+  clip-path: polygon(6% 0, 94% 0, 100% 100%, 0 100%);
+  border-top: 1px solid rgba(255,255,255,.72);
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,.4), 0 11px 24px rgba(0,0,0,.35);
 }
 html[data-shell="dock3d"] .edge-bottom::after {
   top: auto;
-  left: calc(var(--curl) - 4px);
-  right: calc(var(--curl) - 4px);
-  bottom: 2px;
-  height: 12px;
-  background-image: linear-gradient(180deg, #8a8f97 0%, #4b4f56 42%, #25282d 100%);
-  clip-path: polygon(0 0, 100% 0, 97% 100%, 3% 100%);
-  border-top: 1px solid rgba(255,255,255,.58);
-  box-shadow: 0 2px 3px rgba(0,0,0,.62), inset 0 -1px 0 rgba(255,255,255,.1);
+  left: 1px;
+  right: 1px;
+  bottom: 1px;
+  height: 13px;
+  background-image: linear-gradient(180deg, #a7abb1 0%, #666b73 26%, #34383e 66%, #1c1f23 100%);
+  clip-path: polygon(0 0, 100% 0, 98% 100%, 2% 100%);
+  border-top: 1px solid rgba(255,255,255,.68);
+  box-shadow: 0 3px 4px rgba(0,0,0,.6), inset 0 -1px 0 rgba(255,255,255,.12);
 }
 
-/* Top mirrors the perspective shelf. */
+/* Top mirrors the shelf and lip. */
 html[data-shell="dock3d"] .edge-top::before {
-  left: calc(var(--curl) - 9px);
-  right: calc(var(--curl) - 9px);
-  top: 7px;
-  bottom: 31px;
+  left: 3px;
+  right: 3px;
+  top: 8px;
+  bottom: 43px;
   background-image:
     linear-gradient(0deg,
-      rgba(255,255,255,.42) 0,
-      rgba(255,255,255,.18) 8%,
-      color-mix(in srgb, var(--black) 54%, #8b9098 46%) 40%,
-      color-mix(in srgb, var(--black) 72%, #4f535a 28%) 100%);
-  clip-path: polygon(0 0, 100% 0, 93% 100%, 7% 100%);
-  border-bottom: 1px solid rgba(255,255,255,.62);
-  box-shadow: 0 1px 0 rgba(0,0,0,.34) inset, 0 -10px 22px rgba(0,0,0,.34);
+      rgba(255,255,255,.54) 0%,
+      rgba(238,241,245,.42) 9%,
+      rgba(142,148,157,.55) 48%,
+      rgba(66,70,77,.72) 100%);
+  clip-path: polygon(0 0, 100% 0, 94% 100%, 6% 100%);
+  border-bottom: 1px solid rgba(255,255,255,.72);
+  box-shadow: inset 0 1px 0 rgba(0,0,0,.4), 0 -11px 24px rgba(0,0,0,.35);
 }
 html[data-shell="dock3d"] .edge-top::after {
   bottom: auto;
-  left: calc(var(--curl) - 4px);
-  right: calc(var(--curl) - 4px);
-  top: 2px;
-  height: 12px;
-  background-image: linear-gradient(0deg, #8a8f97 0%, #4b4f56 42%, #25282d 100%);
-  clip-path: polygon(3% 0, 97% 0, 100% 100%, 0 100%);
-  border-bottom: 1px solid rgba(255,255,255,.58);
-  box-shadow: 0 -2px 3px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.1);
+  left: 1px;
+  right: 1px;
+  top: 1px;
+  height: 13px;
+  background-image: linear-gradient(0deg, #a7abb1 0%, #666b73 26%, #34383e 66%, #1c1f23 100%);
+  clip-path: polygon(2% 0, 98% 0, 100% 100%, 0 100%);
+  border-bottom: 1px solid rgba(255,255,255,.68);
+  box-shadow: 0 -3px 4px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.12);
 }
 
-/* Side docks use the same shelf language rotated vertically. */
+/* Side docks keep the same platform/lip vocabulary rotated vertically. */
 html[data-shell="dock3d"] .edge-right::before {
-  top: calc(var(--curl) - 9px);
-  bottom: calc(var(--curl) - 9px);
-  left: 18px;
-  right: 7px;
-  background-image: linear-gradient(90deg,
-    rgba(255,255,255,.4),
-    color-mix(in srgb, var(--black) 56%, #80858d 44%) 42%,
-    color-mix(in srgb, var(--black) 74%, #4a4d54 26%));
-  clip-path: polygon(0 7%, 100% 0, 100% 100%, 0 93%);
-  border-left: 1px solid rgba(255,255,255,.5);
-  box-shadow: -8px 0 20px rgba(0,0,0,.3);
+  top: 3px;
+  bottom: 3px;
+  left: 39px;
+  right: 8px;
+  background-image: linear-gradient(90deg, rgba(255,255,255,.54), rgba(141,147,156,.56) 48%, rgba(62,66,73,.74));
+  clip-path: polygon(0 6%, 100% 0, 100% 100%, 0 94%);
+  border-left: 1px solid rgba(255,255,255,.68);
+  box-shadow: -11px 0 24px rgba(0,0,0,.33);
 }
 html[data-shell="dock3d"] .edge-right::after {
   left: auto;
-  top: calc(var(--curl) - 4px);
-  bottom: calc(var(--curl) - 4px);
-  right: 2px;
-  width: 11px;
-  background-image: linear-gradient(90deg, #858a92, #3d4147 55%, #22252a);
-  clip-path: polygon(0 0, 100% 3%, 100% 97%, 0 100%);
-  border-left: 1px solid rgba(255,255,255,.48);
+  top: 1px;
+  bottom: 1px;
+  right: 1px;
+  width: 13px;
+  background-image: linear-gradient(90deg, #a7abb1, #646970 32%, #30343a 68%, #1b1e22);
+  clip-path: polygon(0 0, 100% 2%, 100% 98%, 0 100%);
+  border-left: 1px solid rgba(255,255,255,.64);
 }
 html[data-shell="dock3d"] .edge-left::before {
-  top: calc(var(--curl) - 9px);
-  bottom: calc(var(--curl) - 9px);
-  left: 7px;
-  right: 18px;
-  background-image: linear-gradient(270deg,
-    rgba(255,255,255,.4),
-    color-mix(in srgb, var(--black) 56%, #80858d 44%) 42%,
-    color-mix(in srgb, var(--black) 74%, #4a4d54 26%));
-  clip-path: polygon(0 0, 100% 7%, 100% 93%, 0 100%);
-  border-right: 1px solid rgba(255,255,255,.5);
-  box-shadow: 8px 0 20px rgba(0,0,0,.3);
+  top: 3px;
+  bottom: 3px;
+  left: 8px;
+  right: 39px;
+  background-image: linear-gradient(270deg, rgba(255,255,255,.54), rgba(141,147,156,.56) 48%, rgba(62,66,73,.74));
+  clip-path: polygon(0 0, 100% 6%, 100% 94%, 0 100%);
+  border-right: 1px solid rgba(255,255,255,.68);
+  box-shadow: 11px 0 24px rgba(0,0,0,.33);
 }
 html[data-shell="dock3d"] .edge-left::after {
   right: auto;
-  top: calc(var(--curl) - 4px);
-  bottom: calc(var(--curl) - 4px);
-  left: 2px;
-  width: 11px;
-  background-image: linear-gradient(270deg, #858a92, #3d4147 55%, #22252a);
-  clip-path: polygon(0 3%, 100% 0, 100% 100%, 0 97%);
-  border-right: 1px solid rgba(255,255,255,.48);
+  top: 1px;
+  bottom: 1px;
+  left: 1px;
+  width: 13px;
+  background-image: linear-gradient(270deg, #a7abb1, #646970 32%, #30343a 68%, #1b1e22);
+  clip-path: polygon(0 2%, 100% 0, 100% 100%, 0 98%);
+  border-right: 1px solid rgba(255,255,255,.64);
 }
 
-/* Icons/gauges sit above the shelf instead of inside cards. */
 html[data-shell="dock3d"] .provider-ring {
   background: transparent;
   border: 0;
   box-shadow: none;
   backdrop-filter: none;
-  filter: drop-shadow(0 5px 4px rgba(0,0,0,.55));
-  transform: scale(.92);
+  filter: drop-shadow(0 5px 4px rgba(0,0,0,.58));
+  transform: scale(1.10);
   -webkit-box-reflect: none;
 }
-html[data-shell="dock3d"] .edge-bottom .provider-ring {
-  -webkit-box-reflect: below -7px linear-gradient(to bottom, rgba(255,255,255,.18), transparent 42%);
+html[data-shell="dock3d"] .edge-bottom .provider-ring.gauge-classic,
+html[data-shell="dock3d"] .edge-bottom .provider-ring.gauge-halo {
+  -webkit-box-reflect: below -8px linear-gradient(to bottom, rgba(255,255,255,.17), transparent 36%);
 }
-html[data-shell="dock3d"] .edge-top .provider-ring {
-  -webkit-box-reflect: above -7px linear-gradient(to top, rgba(255,255,255,.18), transparent 42%);
+html[data-shell="dock3d"] .edge-top .provider-ring.gauge-classic,
+html[data-shell="dock3d"] .edge-top .provider-ring.gauge-halo {
+  -webkit-box-reflect: above -8px linear-gradient(to top, rgba(255,255,255,.17), transparent 36%);
 }
 html[data-shell="dock3d"] .provider-percent {
-  font-size: 12px;
-  text-shadow: 0 1px 3px rgba(0,0,0,.95), 0 0 4px rgba(0,0,0,.45);
+  font-size: 11px;
+  line-height: 15px;
+  text-shadow: 0 1px 3px rgba(0,0,0,.98), 0 0 5px rgba(0,0,0,.5);
 }
 html[data-shell="dock3d"] .provider-ring,
 html[data-shell="dock3d"] .provider-cell {
   transition: transform 190ms cubic-bezier(.2,.85,.25,1.22), opacity 180ms ease;
 }
 
-html[data-shell="dock3d"] .edge-bottom .provider-stack { transform: translateY(-6px); }
-html[data-shell="dock3d"] .edge-top .provider-stack { transform: translateY(6px); }
-html[data-shell="dock3d"] .edge-right .provider-stack { transform: translateX(-6px); }
-html[data-shell="dock3d"] .edge-left .provider-stack { transform: translateX(6px); }
-
+/* Magnification intentionally consumes neighboring space, like the old Dock. */
 html[data-shell="dock3d"] .edge-top .provider-cell:hover .provider-ring,
 html[data-shell="dock3d"] .edge-top .provider-cell:focus-visible .provider-ring {
-  transform: translateY(7px) scale(1.18);
+  transform: translateY(7px) scale(1.28);
 }
 html[data-shell="dock3d"] .edge-bottom .provider-cell:hover .provider-ring,
 html[data-shell="dock3d"] .edge-bottom .provider-cell:focus-visible .provider-ring {
-  transform: translateY(-7px) scale(1.18);
+  transform: translateY(-7px) scale(1.28);
 }
 html[data-shell="dock3d"] .edge-right .provider-cell:hover .provider-ring,
 html[data-shell="dock3d"] .edge-right .provider-cell:focus-visible .provider-ring {
-  transform: translateX(-7px) scale(1.18);
+  transform: translateX(-7px) scale(1.28);
 }
 html[data-shell="dock3d"] .edge-left .provider-cell:hover .provider-ring,
 html[data-shell="dock3d"] .edge-left .provider-cell:focus-visible .provider-ring {
-  transform: translateX(7px) scale(1.18);
+  transform: translateX(7px) scale(1.28);
 }
 html[data-shell="dock3d"] .provider-cell:hover + .provider-cell .provider-ring,
 html[data-shell="dock3d"] .provider-cell:has(+ .provider-cell:hover) .provider-ring {
-  transform: scale(1.055);
+  transform: scale(1.16);
 }
 
-/* Settings behaves like the separated utility/trash side of the old Dock. */
+/* Settings occupies the final dock slot rather than floating outside the body. */
 html[data-shell="dock3d"] .settings-orb {
-  width: 37px;
-  height: 37px;
+  width: 38px;
+  height: 38px;
   background: transparent;
   border: 0;
   color: var(--text);
-  filter: drop-shadow(0 4px 3px rgba(0,0,0,.52));
+  filter: drop-shadow(0 4px 3px rgba(0,0,0,.58));
+}
+html[data-shell="dock3d"] .edge-bottom .settings-orb {
+  right: 12px;
+  top: 14px;
+  bottom: auto;
+}
+html[data-shell="dock3d"] .edge-top .settings-orb {
+  right: 12px;
+  bottom: 14px;
+  top: auto;
+}
+html[data-shell="dock3d"] .edge-right .settings-orb {
+  right: 23px;
+  bottom: 12px;
+}
+html[data-shell="dock3d"] .edge-left .settings-orb {
+  left: 23px;
+  bottom: 12px;
 }
 html[data-shell="dock3d"] .settings-orb:hover,
 html[data-shell="dock3d"] .settings-orb:focus-visible {
-  background: color-mix(in srgb, var(--text) 10%, transparent);
+  background: rgba(255,255,255,.12);
 }
 html[data-shell="dock3d"] .settings-orb .orb-cog {
   width: 17px;
   height: 17px;
-  opacity: .78;
+  opacity: .82;
   transform: none;
 }
 
-/* Compact gauges still get a faint smoked plate because tiny bars need local
-   contrast, but it is much subtler than a rounded card floating on the shelf. */
+/* Compact bars need a small contrast plate; circular gauges never do. */
 html[data-shell="dock3d"] .provider-ring.gauge-slim,
 html[data-shell="dock3d"] .provider-ring.gauge-stacked,
 html[data-shell="dock3d"] .provider-ring.gauge-columns,
 html[data-shell="dock3d"] .provider-ring.gauge-micro {
-  background: color-mix(in srgb, var(--black) 22%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-  border-radius: 10px;
+  background: rgba(22,24,28,.28);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 9px;
   backdrop-filter: blur(3px);
+  transform: scale(1);
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html[data-shell="dock"] .provider-ring,
+  html[data-shell="dock3d"] .provider-ring,
+  html[data-shell="dock"] .provider-cell,
+  html[data-shell="dock3d"] .provider-cell {
+    transition-duration: 0.01ms !important;
+  }
   html[data-shell="dock3d"] .provider-ring { -webkit-box-reflect: none; }
 }
