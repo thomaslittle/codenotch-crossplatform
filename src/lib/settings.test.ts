@@ -46,6 +46,7 @@ describe("settings", () => {
       theme: DEFAULT_SETTINGS.theme,
       shellStyle: DEFAULT_SETTINGS.shellStyle,
       gaugeStyle: DEFAULT_SETTINGS.gaugeStyle,
+      accent: DEFAULT_SETTINGS.accent,
       autoHide: DEFAULT_SETTINGS.autoHide,
       autoHideDelaySec: DEFAULT_SETTINGS.autoHideDelaySec,
     });
@@ -67,9 +68,18 @@ describe("settings", () => {
       theme: "custom",
       shellStyle: "tab",
       gaugeStyle: "classic",
+      accent: DEFAULT_SETTINGS.accent,
       autoHide: false,
       autoHideDelaySec: 5,
     });
+  });
+
+  it("persists a valid accent and rejects malformed values", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ accent: "#ff66cc" }));
+    expect(loadSettings().accent).toBe("#ff66cc");
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ accent: "hotpink" }));
+    expect(loadSettings().accent).toBe(DEFAULT_SETTINGS.accent);
   });
 
   it("restores legacy named theme surfaces", () => {
