@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import type { ThemeMode, ThemePresetId } from "../types";
-import { usageBand } from "./usage";
+import { availabilityBand, usageBand } from "./usage";
 
 export const DARK_SURFACE = "#000000";
 export const LIGHT_SURFACE = "#eef0f4";
@@ -76,6 +76,17 @@ function surfaceBands(surface: string): { ok: string; warn: string; crit: string
 export function bandFor(surface: string, fraction: number): string {
   const bands = surfaceBands(surface);
   switch (usageBand(fraction)) {
+    case "ample": return bands.ok;
+    case "watch": return bands.warn;
+    case "critical":
+    case "exhausted": return bands.crit;
+  }
+}
+
+/** Remaining-quota color: healthy/full is green, depleted is red. */
+export function bandForRemaining(surface: string, fraction: number): string {
+  const bands = surfaceBands(surface);
+  switch (availabilityBand(fraction)) {
     case "ample": return bands.ok;
     case "watch": return bands.warn;
     case "critical":
