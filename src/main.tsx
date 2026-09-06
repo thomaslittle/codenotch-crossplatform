@@ -2,6 +2,7 @@ import { MotionConfig } from "motion/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
+import "./shells.css";
 import { ContextMenuView } from "./views/ContextMenuView";
 import { NotchView } from "./views/NotchView";
 import { SettingsView } from "./views/SettingsView";
