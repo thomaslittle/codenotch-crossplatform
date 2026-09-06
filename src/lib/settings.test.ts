@@ -40,9 +40,10 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-describe("auto-hide settings", () => {
+describe("settings", () => {
   it("uses defaults when storage is empty", () => {
     expect(loadSettings()).toMatchObject({
+      theme: DEFAULT_SETTINGS.theme,
       autoHide: DEFAULT_SETTINGS.autoHide,
       autoHideDelaySec: DEFAULT_SETTINGS.autoHideDelaySec,
     });
@@ -61,9 +62,23 @@ describe("auto-hide settings", () => {
     expect(loadSettings()).toMatchObject({
       edge: "left",
       scale: 0.9,
+      theme: "custom",
       autoHide: false,
       autoHideDelaySec: 5,
     });
+  });
+
+  it("restores legacy named theme surfaces", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme: "abyss", surface: "#ffffff" }));
+    expect(loadSettings()).toMatchObject({
+      theme: "abyss",
+      surface: "#0b1526",
+    });
+  });
+
+  it("falls back from unknown theme ids", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme: "unknown" }));
+    expect(loadSettings().theme).toBe("custom");
   });
 
   it("does not coerce non-boolean autoHide values", () => {
