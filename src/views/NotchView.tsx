@@ -25,25 +25,23 @@ import { ProviderLogo } from "../components/ProviderLogo";
 import type { Edge, GaugeStyle, ProviderSnapshot } from "../types";
 
 const ringSize = 44;
+const classicTrackStroke = 5.8;
+const classicProgressStroke = 3;
+const classicRadius = (ringSize - classicTrackStroke) / 2;
+const classicCircumference = 2 * Math.PI * classicRadius;
 
-type GaugeMetrics = {
-  trackStroke: number;
-  progressStroke: number;
-  trackOpacity: number;
-  glowStroke?: number;
-  glowOpacity?: number;
-};
-
-function gaugeMetrics(style: GaugeStyle): GaugeMetrics {
-  switch (style) {
-    case "slim":
-      return { trackStroke: 2.4, progressStroke: 2.2, trackOpacity: 0.62 };
-    case "halo":
-      return { trackStroke: 5.2, progressStroke: 3.4, trackOpacity: 0.5, glowStroke: 8, glowOpacity: 0.18 };
-    case "classic":
-    default:
-      return { trackStroke: 5.8, progressStroke: 3, trackOpacity: 1 };
-  }
+function ActivityOverlay({ snapshot }: { snapshot: ProviderSnapshot }) {
+  if (!snapshot.activity || snapshot.activity.state === "idle") return null;
+  return (
+    <svg className="ring-svg" viewBox="0 0 44 44" aria-hidden="true">
+      {snapshot.activity.state === "working" && (
+        <circle className="activity-spinner" cx="22" cy="22" r="13.4" />
+      )}
+      {snapshot.activity.state === "waiting" && (
+        <circle className="activity-waiting" cx="22" cy="22" r="13.4" />
+      )}
+    </svg>
+  );
 }
 
 function ProviderRing({
@@ -61,46 +59,86 @@ function ProviderRing({
   const isWaiting = snapshot.activity?.state === "waiting";
   const color = bandFor(surface, isWaiting ? 1 : fraction);
   const stale = snapshot.status === "stale" || snapshot.status === "error";
-  const metrics = gaugeMetrics(gaugeStyle);
-  const radius = (ringSize - metrics.trackStroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const dashOffset = circumference * (1 - fraction);
+
+  if (gaugeStyle === "slim") {
+    return (
+      <div className={`provider-ring gauge-slim ${stale ? "is-stale" : ""}`}>
+        <span className="provider-glyph" aria-hidden="true"><ProviderLogo id={snapshot.id} glyph={snapshot.glyph} /></span>
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            left: 5,
+            right: 5,
+            bottom: 4,
+            height: 4,
+            borderRadius: 999,
+            overflow: "hidden",
+            background: "var(--track)",
+          }}
+        >
+          {used != null && (
+            <span
+              style={{
+                display: "block",
+                width: `${fraction * 100}%`,
+                height: "100%",
+                borderRadius: 999,
+                background: color,
+                transition: "width 420ms cubic-bezier(.22,.8,.2,1), background 220ms ease",
+              }}
+            />
+          )}
+        </div>
+        <ActivityOverlay snapshot={snapshot} />
+      </div>
+    );
+  }
+
+  if (gaugeStyle === "halo") {
+    const activeTicks = used == null ? 0 : Math.round(fraction * 12);
+    return (
+      <div className={`provider-ring gauge-halo ${stale ? "is-stale" : ""}`}>
+        <svg className="ring-svg" viewBox="0 0 44 44" aria-hidden="true">
+          {Array.from({ length: 12 }, (_, index) => {
+            const active = index < activeTicks;
+            return (
+              <line
+                key={index}
+                x1="22"
+                y1="3.6"
+                x2="22"
+                y2="8.1"
+                stroke={active ? color : "var(--track)"}
+                strokeWidth={active ? 2.8 : 2.2}
+                strokeLinecap="round"
+                opacity={active ? 1 : 0.72}
+                transform={`rotate(${index * 30} 22 22)`}
+                style={active ? { filter: `drop-shadow(0 0 2.5px ${color})` } : undefined}
+              />
+            );
+          })}
+        </svg>
+        <span className="provider-glyph" aria-hidden="true"><ProviderLogo id={snapshot.id} glyph={snapshot.glyph} /></span>
+        <ActivityOverlay snapshot={snapshot} />
+      </div>
+    );
+  }
 
   return (
-    <div className={`provider-ring gauge-${gaugeStyle} ${stale ? "is-stale" : ""}`}>
+    <div className={`provider-ring gauge-classic ${stale ? "is-stale" : ""}`}>
       <svg className="ring-svg" viewBox="0 0 44 44" aria-hidden="true">
-        <circle
-          className="ring-track"
-          cx="22"
-          cy="22"
-          r={radius}
-          strokeWidth={metrics.trackStroke}
-          opacity={metrics.trackOpacity}
-        />
-        {used != null && metrics.glowStroke != null && (
-          <circle
-            cx="22"
-            cy="22"
-            r={radius}
-            fill="none"
-            stroke={color}
-            strokeWidth={metrics.glowStroke}
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={dashOffset}
-            opacity={metrics.glowOpacity}
-          />
-        )}
+        <circle className="ring-track" cx="22" cy="22" r={classicRadius} strokeWidth={classicTrackStroke} />
         {used != null && (
           <circle
             className="ring-value"
             cx="22"
             cy="22"
-            r={radius}
+            r={classicRadius}
             stroke={color}
-            strokeWidth={metrics.progressStroke}
-            strokeDasharray={circumference}
-            strokeDashoffset={dashOffset}
+            strokeWidth={classicProgressStroke}
+            strokeDasharray={classicCircumference}
+            strokeDashoffset={classicCircumference * (1 - fraction)}
           />
         )}
         {snapshot.activity?.state === "working" && (
