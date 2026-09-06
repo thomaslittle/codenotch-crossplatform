@@ -6,11 +6,25 @@ use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Position,
 #[serde(rename_all = "lowercase")]
 pub enum Edge { Right, Left, Top, Bottom }
 
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ShellStyle {
+    Tab,
+    Bubble,
+    Sharp,
+    Trapezoid,
+    Pill,
+    Rail,
+    Dock,
+    #[serde(rename = "dock3d")]
+    Dock3d,
+    Ghost,
+}
+
 const SIDE_DEPTH: f64 = 70.0;
 const HORIZONTAL_DEPTH: f64 = 84.0;
 pub const SLIVER: f64 = 6.0;
 const CURL: f64 = 39.0;
-const RING: f64 = 44.0;
 const CELL: f64 = 70.0;
 const HORIZONTAL_CELL: f64 = 48.0;
 const GAP: f64 = 31.0;
@@ -24,6 +38,19 @@ const COMPACT_END_PAD: f64 = 14.0;
 const TOOLTIP_W: f64 = 270.0;
 const TOOLTIP_H: f64 = 280.0;
 const AUTODETECT_POLL_MS: u64 = 120;
+
+#[derive(Debug, Clone, Copy)]
+struct LayoutMetrics {
+    outer: f64,
+    start: f64,
+    end: f64,
+    side_cell: f64,
+    horizontal_cell: f64,
+    side_gap: f64,
+    horizontal_gap: f64,
+    side_depth: f64,
+    horizontal_depth: f64,
+}
 
 fn monitor_rect(monitor: &tauri::Monitor) -> (f64, f64, f64, f64) {
     let scale = monitor.scale_factor();
@@ -99,26 +126,115 @@ fn clamp_scale(scale: f64) -> f64 {
     scale.clamp(0.5, 2.0)
 }
 
-fn layout_metrics(compact: bool) -> (f64, f64, f64, f64, f64) {
-    if compact {
-        (COMPACT_START_PAD, COMPACT_END_PAD, COMPACT_CELL, COMPACT_HORIZONTAL_CELL, COMPACT_GAP)
-    } else {
-        (START_PAD, END_PAD, CELL, HORIZONTAL_CELL, GAP)
+/// Native window geometry has to follow the visible shell, not the original
+/// tab's spacing. Dock shells reserve a real Settings slot and intentionally
+/// pack provider icons closer together, while legacy/tab-shaped shells keep
+/// the original measurements exactly.
+fn layout_metrics(compact: bool, shell: ShellStyle) -> LayoutMetrics {
+    match shell {
+        ShellStyle::Dock | ShellStyle::Rail => {
+            if compact {
+                LayoutMetrics {
+                    outer: 0.0,
+                    start: 14.0,
+                    end: 54.0,
+                    side_cell: 44.0,
+                    horizontal_cell: 44.0,
+                    side_gap: 8.0,
+                    horizontal_gap: 8.0,
+                    side_depth: 70.0,
+                    horizontal_depth: 80.0,
+                }
+            } else {
+                LayoutMetrics {
+                    outer: 0.0,
+                    start: 14.0,
+                    end: 58.0,
+                    side_cell: 70.0,
+                    horizontal_cell: 52.0,
+                    side_gap: 8.0,
+                    horizontal_gap: 10.0,
+                    side_depth: 74.0,
+                    horizontal_depth: 86.0,
+                }
+            }
+        }
+        ShellStyle::Dock3d => {
+            if compact {
+                LayoutMetrics {
+                    outer: 0.0,
+                    start: 16.0,
+                    end: 58.0,
+                    side_cell: 44.0,
+                    horizontal_cell: 44.0,
+                    side_gap: 7.0,
+                    horizontal_gap: 7.0,
+                    side_depth: 80.0,
+                    horizontal_depth: 90.0,
+                }
+            } else {
+                LayoutMetrics {
+                    outer: 0.0,
+                    start: 16.0,
+                    end: 62.0,
+                    side_cell: 70.0,
+                    horizontal_cell: 52.0,
+                    side_gap: 7.0,
+                    horizontal_gap: 7.0,
+                    side_depth: 84.0,
+                    horizontal_depth: 96.0,
+                }
+            }
+        }
+        _ => {
+            if compact {
+                LayoutMetrics {
+                    outer: CURL,
+                    start: COMPACT_START_PAD,
+                    end: COMPACT_END_PAD,
+                    side_cell: COMPACT_CELL,
+                    horizontal_cell: COMPACT_HORIZONTAL_CELL,
+                    side_gap: COMPACT_GAP,
+                    horizontal_gap: COMPACT_GAP,
+                    side_depth: SIDE_DEPTH,
+                    horizontal_depth: HORIZONTAL_DEPTH,
+                }
+            } else {
+                LayoutMetrics {
+                    outer: CURL,
+                    start: START_PAD,
+                    end: END_PAD,
+                    side_cell: CELL,
+                    horizontal_cell: HORIZONTAL_CELL,
+                    side_gap: GAP,
+                    horizontal_gap: GAP,
+                    side_depth: SIDE_DEPTH,
+                    horizontal_depth: HORIZONTAL_DEPTH,
+                }
+            }
+        }
     }
 }
 
-fn side_length(count: usize, scale: f64, compact: bool) -> f64 {
+fn side_length(count: usize, scale: f64, compact: bool, shell: ShellStyle) -> f64 {
     let count = count.max(1) as f64;
-    let (start_pad, end_pad, cell, _, gap) = layout_metrics(compact);
-    let (curl, start, end, cell, gap) = (CURL * scale, start_pad * scale, end_pad * scale, cell * scale, gap * scale);
-    curl * 2.0 + start + end + count * cell + (count - 1.0) * gap
+    let m = layout_metrics(compact, shell);
+    (m.outer * 2.0 + m.start + m.end + count * m.side_cell + (count - 1.0) * m.side_gap) * scale
 }
 
-fn horizontal_length(count: usize, scale: f64, compact: bool) -> f64 {
+fn horizontal_length(count: usize, scale: f64, compact: bool, shell: ShellStyle) -> f64 {
     let count = count.max(1) as f64;
-    let (start_pad, end_pad, _, horizontal_cell, gap) = layout_metrics(compact);
-    let (curl, start, end, cell, gap) = (CURL * scale, start_pad * scale, end_pad * scale, horizontal_cell * scale, gap * scale);
-    curl * 2.0 + start + end + count * cell + (count - 1.0) * gap
+    let m = layout_metrics(compact, shell);
+    (m.outer * 2.0 + m.start + m.end + count * m.horizontal_cell + (count - 1.0) * m.horizontal_gap) * scale
+}
+
+fn provider_center(index: usize, edge: Edge, scale: f64, compact: bool, shell: ShellStyle) -> f64 {
+    let m = layout_metrics(compact, shell);
+    let (cell, gap) = match edge {
+        Edge::Right | Edge::Left => (m.side_cell, m.side_gap),
+        Edge::Top | Edge::Bottom => (m.horizontal_cell, m.horizontal_gap),
+    };
+    (m.outer + m.start + index as f64 * (cell + gap) + cell / 2.0) * scale
 }
 
 pub fn place_notch(
@@ -130,27 +246,29 @@ pub fn place_notch(
     offset_x: f64,
     offset_y: f64,
     compact: bool,
+    shell: ShellStyle,
 ) -> Result<(), String> {
     let window = app.get_webview_window("notch").ok_or("Notch window missing")?;
     let s = clamp_scale(scale);
     let (mx, my, mw, mh) = target_rect(app, monitor)?;
-    let side_depth = SIDE_DEPTH * s;
-    let horizontal_depth = HORIZONTAL_DEPTH * s;
+    let metrics = layout_metrics(compact, shell);
+    let side_depth = metrics.side_depth * s;
+    let horizontal_depth = metrics.horizontal_depth * s;
     let (w, h, mut x, mut y) = match edge {
         Edge::Right => {
-            let h = side_length(count, s, compact).min(mh - 32.0);
+            let h = side_length(count, s, compact, shell).min(mh - 32.0);
             (side_depth, h, mx + mw - side_depth, my + (mh - h) / 2.0)
         }
         Edge::Left => {
-            let h = side_length(count, s, compact).min(mh - 32.0);
+            let h = side_length(count, s, compact, shell).min(mh - 32.0);
             (side_depth, h, mx, my + (mh - h) / 2.0)
         }
         Edge::Top => {
-            let w = horizontal_length(count, s, compact).min(mw - 32.0);
+            let w = horizontal_length(count, s, compact, shell).min(mw - 32.0);
             (w, horizontal_depth, mx + (mw - w) / 2.0, my)
         }
         Edge::Bottom => {
-            let w = horizontal_length(count, s, compact).min(mw - 32.0);
+            let w = horizontal_length(count, s, compact, shell).min(mw - 32.0);
             (w, horizontal_depth, mx + (mw - w) / 2.0, my + mh - horizontal_depth)
         }
     };
@@ -164,7 +282,14 @@ pub fn place_notch(
     Ok(())
 }
 
-pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64, compact: bool) -> Result<(), String> {
+pub fn place_tooltip(
+    app: &AppHandle,
+    edge: Edge,
+    index: usize,
+    notch_scale: f64,
+    compact: bool,
+    shell: ShellStyle,
+) -> Result<(), String> {
     let notch = app.get_webview_window("notch").ok_or("Notch window missing")?;
     let tooltip = app.get_webview_window("tooltip").ok_or("Tooltip window missing")?;
     let factor = notch.scale_factor().map_err(|e| e.to_string())?;
@@ -176,7 +301,6 @@ pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64
     let nh = s.height as f64 / factor;
     tooltip.set_size(Size::Logical(LogicalSize::new(TOOLTIP_W, TOOLTIP_H))).map_err(|e| e.to_string())?;
     let k = clamp_scale(notch_scale);
-    let (start_pad, _, cell, horizontal_cell, gap) = layout_metrics(compact);
     let (mx, my, mw, mh) = notch
         .current_monitor()
         .ok()
@@ -188,13 +312,13 @@ pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64
 
     let (x, y) = match edge {
         Edge::Right | Edge::Left => {
-            let center = (CURL + start_pad + index as f64 * (cell + gap) + RING / 2.0) * k;
+            let center = provider_center(index, edge, k, compact, shell);
             let y = (ny + center - TOOLTIP_H / 2.0).clamp(my, (my + mh - TOOLTIP_H).max(my));
             let x = match edge { Edge::Right => nx - TOOLTIP_W + 9.0, _ => nx + nw - 9.0 };
             (x, y)
         }
         Edge::Top | Edge::Bottom => {
-            let center = (CURL + start_pad + index as f64 * (horizontal_cell + gap) + RING / 2.0) * k;
+            let center = provider_center(index, edge, k, compact, shell);
             let x = (nx + center - TOOLTIP_W / 2.0).clamp(mx, (mx + mw - TOOLTIP_W).max(mx));
             let y = match edge { Edge::Top => ny + nh - 9.0, _ => ny - TOOLTIP_H + 9.0 };
             (x, y)
@@ -448,7 +572,7 @@ pub fn fit_settings(app: &AppHandle, height: f64) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{hotspot_rect, Edge};
+    use super::{horizontal_length, hotspot_rect, layout_metrics, provider_center, side_length, Edge, ShellStyle};
 
     #[test]
     fn hotspot_hugs_right_edge() {
@@ -468,5 +592,26 @@ mod tests {
     #[test]
     fn hotspot_hugs_bottom_edge() {
         assert_eq!(hotspot_rect(10, 20, 100, 50, Edge::Bottom, 12), (10, 58, 100, 12));
+    }
+
+    #[test]
+    fn glass_dock_packs_four_classic_icons() {
+        assert_eq!(horizontal_length(4, 1.0, false, ShellStyle::Dock), 310.0);
+        assert_eq!(provider_center(0, Edge::Bottom, 1.0, false, ShellStyle::Dock), 40.0);
+        assert_eq!(provider_center(3, Edge::Bottom, 1.0, false, ShellStyle::Dock), 226.0);
+    }
+
+    #[test]
+    fn three_d_dock_has_its_own_depth_and_spacing() {
+        let metrics = layout_metrics(false, ShellStyle::Dock3d);
+        assert_eq!(metrics.horizontal_depth, 96.0);
+        assert_eq!(metrics.side_depth, 84.0);
+        assert_eq!(horizontal_length(4, 1.0, false, ShellStyle::Dock3d), 307.0);
+        assert_eq!(side_length(4, 1.0, false, ShellStyle::Dock3d), 379.0);
+    }
+
+    #[test]
+    fn tab_geometry_is_unchanged() {
+        assert_eq!(horizontal_length(4, 1.0, false, ShellStyle::Tab), 408.0);
     }
 }
