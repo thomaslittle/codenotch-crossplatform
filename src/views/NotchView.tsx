@@ -22,26 +22,75 @@ import { checkForUpdates } from "../lib/updates";
 import { bandFor, resolveSurface, themeVars, useSystemLight } from "../lib/theme";
 import { clamp01, formatPercent, headlineWindow } from "../lib/usage";
 import { ProviderLogo } from "../components/ProviderLogo";
-import type { Edge, ProviderSnapshot } from "../types";
+import type { Edge, GaugeStyle, ProviderSnapshot } from "../types";
 
 const ringSize = 44;
-const trackStroke = 5.8;
-const progressStroke = 3;
-const radius = (ringSize - trackStroke) / 2;
-const circumference = 2 * Math.PI * radius;
 
-function ProviderRing({ snapshot, surface }: { snapshot: ProviderSnapshot; surface: string }) {
+type GaugeMetrics = {
+  trackStroke: number;
+  progressStroke: number;
+  trackOpacity: number;
+  glowStroke?: number;
+  glowOpacity?: number;
+};
+
+function gaugeMetrics(style: GaugeStyle): GaugeMetrics {
+  switch (style) {
+    case "slim":
+      return { trackStroke: 2.4, progressStroke: 2.2, trackOpacity: 0.62 };
+    case "halo":
+      return { trackStroke: 5.2, progressStroke: 3.4, trackOpacity: 0.5, glowStroke: 8, glowOpacity: 0.18 };
+    case "classic":
+    default:
+      return { trackStroke: 5.8, progressStroke: 3, trackOpacity: 1 };
+  }
+}
+
+function ProviderRing({
+  snapshot,
+  surface,
+  gaugeStyle,
+}: {
+  snapshot: ProviderSnapshot;
+  surface: string;
+  gaugeStyle: GaugeStyle;
+}) {
   const window = headlineWindow(snapshot);
   const used = window?.usedFraction;
   const fraction = clamp01(used ?? 0);
   const isWaiting = snapshot.activity?.state === "waiting";
   const color = bandFor(surface, isWaiting ? 1 : fraction);
   const stale = snapshot.status === "stale" || snapshot.status === "error";
+  const metrics = gaugeMetrics(gaugeStyle);
+  const radius = (ringSize - metrics.trackStroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference * (1 - fraction);
 
   return (
-    <div className={`provider-ring ${stale ? "is-stale" : ""}`}>
+    <div className={`provider-ring gauge-${gaugeStyle} ${stale ? "is-stale" : ""}`}>
       <svg className="ring-svg" viewBox="0 0 44 44" aria-hidden="true">
-        <circle className="ring-track" cx="22" cy="22" r={radius} strokeWidth={trackStroke} />
+        <circle
+          className="ring-track"
+          cx="22"
+          cy="22"
+          r={radius}
+          strokeWidth={metrics.trackStroke}
+          opacity={metrics.trackOpacity}
+        />
+        {used != null && metrics.glowStroke != null && (
+          <circle
+            cx="22"
+            cy="22"
+            r={radius}
+            fill="none"
+            stroke={color}
+            strokeWidth={metrics.glowStroke}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
+            opacity={metrics.glowOpacity}
+          />
+        )}
         {used != null && (
           <circle
             className="ring-value"
@@ -49,9 +98,9 @@ function ProviderRing({ snapshot, surface }: { snapshot: ProviderSnapshot; surfa
             cy="22"
             r={radius}
             stroke={color}
-            strokeWidth={progressStroke}
+            strokeWidth={metrics.progressStroke}
             strokeDasharray={circumference}
-            strokeDashoffset={circumference * (1 - fraction)}
+            strokeDashoffset={dashOffset}
           />
         )}
         {snapshot.activity?.state === "working" && (
@@ -71,6 +120,7 @@ function ProviderCell({
   index,
   edge,
   surface,
+  gaugeStyle,
   onHover,
   onLeave,
 }: {
@@ -78,6 +128,7 @@ function ProviderCell({
   index: number;
   edge: Edge;
   surface: string;
+  gaugeStyle: GaugeStyle;
   onHover: (snapshot: ProviderSnapshot, index: number) => void;
   onLeave: () => void;
 }) {
@@ -103,7 +154,7 @@ function ProviderCell({
       whileTap={{ scale: 0.94 }}
       transition={{ type: "spring", stiffness: 420, damping: 26, delay: Math.min(index * 0.05, 0.25) }}
     >
-      <ProviderRing snapshot={snapshot} surface={surface} />
+      <ProviderRing snapshot={snapshot} surface={surface} gaugeStyle={gaugeStyle} />
       <span className="provider-percent">{used == null ? (snapshot.displayValue ?? "—") : formatPercent(used)}</span>
     </motion.button>
   );
@@ -134,7 +185,7 @@ export function NotchView() {
   }, []);
 
   const sysLight = useSystemLight();
-  const surface = resolveSurface(settings.mode, settings.surface, sysLight);
+  const surface = resolveSurface(settings.mode, settings.surface, sysLight, settings.theme);
   const shellStyle = { ...themeVars(surface), zoom: settings.scale, opacity: settings.opacity };
   const leaveTimer = useRef<number | null>(null);
   // Invalidates in-flight tooltip hide timers (see `leave`).
@@ -385,6 +436,7 @@ export function NotchView() {
             index={index}
             edge={edge}
             surface={surface}
+            gaugeStyle={settings.gaugeStyle}
             onHover={hover}
             onLeave={leave}
           />
@@ -394,7 +446,7 @@ export function NotchView() {
         {updateAvailable && <span className="orb-update" aria-label="Update available" />}
         <svg className="orb-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
       </button>
     </motion.main>
