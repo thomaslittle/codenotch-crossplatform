@@ -13,13 +13,24 @@ async fn get_snapshots(store: State<'_, ProviderStore>) -> Result<Vec<ProviderSn
 }
 
 #[tauri::command]
-fn set_edge(app: tauri::AppHandle, edge: Edge, provider_count: usize) -> Result<(), String> {
-    windows::place_notch(&app, edge, provider_count)
+fn set_edge(
+    app: tauri::AppHandle,
+    edge: Edge,
+    provider_count: usize,
+    scale: f64,
+    monitor: String,
+    offset_x: f64,
+    offset_y: f64,
+) -> Result<(), String> {
+    windows::place_notch(&app, edge, provider_count, scale, &monitor, offset_x, offset_y)
 }
 
 #[tauri::command]
-fn show_tooltip(app: tauri::AppHandle, edge: Edge, index: usize) -> Result<(), String> {
-    windows::place_tooltip(&app, edge, index)
+fn show_tooltip(app: tauri::AppHandle, edge: Edge, index: usize, scale: f64) -> Result<(), String> {
+    windows::place_tooltip(&app, edge, index, scale).map_err(|error| {
+        eprintln!("[codenotch] show_tooltip failed (edge={edge:?}, index={index}): {error}");
+        error
+    })
 }
 
 #[tauri::command]
@@ -30,19 +41,40 @@ fn hide_window(app: tauri::AppHandle, label: String) -> Result<(), String> {
     Ok(())
 }
 
+/// `None` means "unknown" — the caller keeps the plain timeout behavior.
+#[tauri::command]
+fn cursor_over_tooltip_area(app: tauri::AppHandle) -> Result<Option<bool>, String> {
+    Ok(windows::cursor_inside_notch_or_tooltip(&app))
+}
+
+#[tauri::command]
+fn list_monitors(app: tauri::AppHandle) -> Result<Vec<windows::MonitorInfo>, String> {
+    windows::list_monitors(&app)
+}
+
+#[tauri::command]
+fn set_blur(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    windows::set_notch_blur(&app, enabled)
+}
+
+#[tauri::command]
+fn fit_settings(app: tauri::AppHandle, height: f64) -> Result<(), String> {
+    windows::fit_settings(&app, height)
+}
+
 #[tauri::command]
 fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
     windows::open_settings(&app)
 }
 
 #[tauri::command]
-fn show_context_menu(app: tauri::AppHandle, edge: Edge) -> Result<(), String> {
-    windows::place_context_menu(&app, edge)
+fn show_context_menu(app: tauri::AppHandle, edge: Edge, scale: f64) -> Result<(), String> {
+    windows::place_context_menu(&app, edge, scale)
 }
 
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
-    const ALLOWED: [&str; 4] = ["https://claude.ai/", "https://cursor.com/", "https://chatgpt.com/", "https://antigravity.google/"];
+    const ALLOWED: [&str; 5] = ["https://claude.ai/", "https://cursor.com/", "https://chatgpt.com/", "https://antigravity.google/", "https://opencode.ai/"];
     if !ALLOWED.iter().any(|prefix| url.starts_with(prefix)) {
         return Err("URL is not an allowed provider destination".into());
     }
@@ -83,7 +115,8 @@ pub fn run() {
         .manage(ProviderStore::default())
         .invoke_handler(tauri::generate_handler![
             get_snapshots, set_edge, show_tooltip, hide_window, open_settings,
-            show_context_menu, app_action, open_url
+            show_context_menu, app_action, open_url, cursor_over_tooltip_area,
+            list_monitors, set_blur, fit_settings
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
@@ -100,7 +133,7 @@ pub fn run() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_millis(120)).await;
-                let _ = windows::place_notch(&handle, Edge::Right, 4);
+                let _ = windows::place_notch(&handle, Edge::Right, 5, 1.0, "primary", 0.0, 0.0);
             });
             Ok(())
         })

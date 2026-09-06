@@ -2,6 +2,7 @@ mod antigravity;
 mod claude;
 mod codex;
 mod cursor;
+mod opencode;
 
 use crate::model::ProviderSnapshot;
 use std::collections::HashMap;
@@ -31,13 +32,14 @@ impl Default for ProviderStore {
 
 impl ProviderStore {
     pub async fn snapshots(&self) -> Vec<ProviderSnapshot> {
-        let (claude, cursor, codex, antigravity) = tokio::join!(
+        let (claude, cursor, codex, antigravity, opencode) = tokio::join!(
             claude::snapshot(),
             cursor::snapshot(),
             codex::snapshot(),
             antigravity::snapshot(),
+            opencode::snapshot(),
         );
-        vec![claude, cursor, codex, antigravity]
+        vec![claude, cursor, codex, antigravity, opencode]
             .into_iter()
             .map(|snapshot| self.with_stale_fallback(snapshot))
             .collect()

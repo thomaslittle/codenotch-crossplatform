@@ -84,8 +84,7 @@ fn read_credential(path: &Path) -> Result<Credential, String> {
     let root: Value = serde_json::from_str(&text).map_err(|error| format!("Claude Code credential file is invalid JSON: {error}"))?;
     let oauth = root.get("claudeAiOauth").ok_or("Claude Code OAuth data is missing from its credential file.")?;
     let access_token = oauth.get("accessToken").and_then(Value::as_str).filter(|value| !value.is_empty()).ok_or("Claude Code access token is missing.")?.to_owned();
-    let expires_ms = oauth.get("expiresAt").and_then(Value::as_f64).ok_or("Claude Code credential expiry is missing.")?;
-    let expires_at = Utc.timestamp_millis_opt(expires_ms as i64).single().ok_or("Claude Code credential expiry is invalid.")?;
+    let expires_at = parse_expiry(oauth.get("expiresAt").or_else(|| oauth.get("expires_at")))?;
     Ok(Credential {
         access_token,
         expires_at,
@@ -93,12 +92,31 @@ fn read_credential(path: &Path) -> Result<Credential, String> {
     })
 }
 
+/// `expiresAt` is documented as milliseconds since the epoch, but tolerate
+/// seconds and string forms so a format change degrades to a working reading
+/// instead of a permanent "expired" status.
+fn parse_expiry(value: Option<&Value>) -> Result<DateTime<Utc>, String> {
+    let Some(value) = value else { return Err("Claude Code credential expiry is missing.".into()) };
+    let millis = match value {
+        Value::Number(number) => number.as_f64().ok_or("Claude Code credential expiry is invalid.")?,
+        Value::String(text) => text.trim().parse::<f64>().map_err(|_| "Claude Code credential expiry is invalid.")?,
+        _ => return Err("Claude Code credential expiry is invalid.".into()),
+    };
+    if !millis.is_finite() || millis <= 0.0 {
+        return Err("Claude Code credential expiry is invalid.".into());
+    }
+    // ms since epoch is ~1.7e12 today; seconds would be ~1.7e9.
+    let millis = if millis < 1e12 { millis * 1000.0 } else { millis };
+    Utc.timestamp_millis_opt(millis as i64).single().ok_or("Claude Code credential expiry is invalid.".into())
+}
+
 fn parse_usage(root: &Value) -> Result<Vec<LimitWindow>, String> {
     let mut windows = Vec::new();
     if let Some(limits) = root.get("limits").and_then(Value::as_array) {
         for item in limits {
             let Some(kind) = item.get("kind").and_then(Value::as_str) else { continue };
-            let Some(percent) = item.get("percent").and_then(Value::as_f64) else { continue };
+            // Current responses use `percent`; tolerate `utilization` too.
+            let Some(percent) = item.get("percent").or_else(|| item.get("utilization")).and_then(Value::as_f64) else { continue };
             let resets_at = parse_date(item.get("resets_at").or_else(|| item.get("resetsAt")));
             windows.push(LimitWindow { id: kind.into(), label: label(kind), used_fraction: percent / 100.0, resets_at });
         }
@@ -119,8 +137,22 @@ fn merge_named(windows: &mut Vec<LimitWindow>, value: Option<&Value>, id: &str, 
 }
 
 fn parse_date(value: Option<&Value>) -> Option<DateTime<Utc>> {
-    let text = value?.as_str()?;
-    DateTime::parse_from_rfc3339(text).ok().map(|date| date.with_timezone(&Utc))
+    let text = value?.as_str()?.trim();
+    if text.is_empty() {
+        return None;
+    }
+    if let Ok(date) = DateTime::parse_from_rfc3339(text) {
+        return Some(date.with_timezone(&Utc));
+    }
+    // Tolerate a space separator or a missing offset (assume UTC).
+    let normalized = text.replace(' ', "T");
+    if let Ok(date) = DateTime::parse_from_rfc3339(&normalized) {
+        return Some(date.with_timezone(&Utc));
+    }
+    if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(&normalized, "%Y-%m-%dT%H:%M:%S%.f") {
+        return Some(naive.and_utc());
+    }
+    None
 }
 
 fn label(kind: &str) -> String {
@@ -151,5 +183,36 @@ mod tests {
         let windows = parse_usage(&body).unwrap();
         assert_eq!(windows[0].id, "session");
         assert!((windows[0].used_fraction - 0.73).abs() < 0.001);
+    }
+
+    #[test]
+    fn parses_live_oauth_shape() {
+        // Shape of GET /api/oauth/usage as observed 2026-09-06: fractional
+        // seconds with a numeric offset, integer percents, and extra null keys.
+        let body: Value = serde_json::json!({
+            "five_hour": {"utilization": 0.0, "resets_at": "2026-09-06T04:50:00.458196+00:00"},
+            "seven_day": {"utilization": 0.0, "resets_at": "2026-09-12T21:00:00.458213+00:00"},
+            "seven_day_opus": null,
+            "limits": [
+                {"kind": "session", "percent": 0, "resets_at": "2026-09-06T04:50:00.458196+00:00"},
+                {"kind": "weekly_all", "percent": 0, "resets_at": "2026-09-12T21:00:00.458213+00:00"}
+            ]
+        });
+        let windows = parse_usage(&body).unwrap();
+        assert_eq!(windows.len(), 2);
+        assert_eq!(windows[0].id, "session");
+        assert_eq!(windows[1].id, "weekly_all");
+        assert!(windows.iter().all(|window| window.resets_at.is_some()));
+    }
+
+    #[test]
+    fn expiry_accepts_seconds_and_strings() {
+        let base = Utc::now() + chrono::Duration::hours(2);
+        let as_seconds = base.timestamp() as f64;
+        let parsed = parse_expiry(Some(&serde_json::json!(as_seconds))).unwrap();
+        assert!((parsed - base).num_seconds().abs() < 5);
+        let as_string = serde_json::json!(as_seconds.to_string());
+        let parsed = parse_expiry(Some(&as_string)).unwrap();
+        assert!((parsed - base).num_seconds().abs() < 5);
     }
 }

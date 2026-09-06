@@ -2,6 +2,7 @@
   "name": "codenotch-crossplatform",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,17 +15,18 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
+    "motion": "^13.2.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",
+    "@types/node": "^22.15.30",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.2",
     "typescript": "^5.9.2",
     "vite": "^7.1.4",
-    "vitest": "^3.2.4",
-    "@types/node": "^22.15.30"
+    "vitest": "^3.2.4"
   }
 }

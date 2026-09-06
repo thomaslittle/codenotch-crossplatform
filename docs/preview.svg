@@ -1,53 +1,96 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="820" height="620" viewBox="0 0 820 620" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640" role="img" aria-labelledby="title desc">
   <title id="title">Codenotch Cross-Platform preview</title>
-  <desc id="desc">A dark desktop with a black usage notch attached to the right edge and a Claude usage tooltip.</desc>
-  <rect width="820" height="620" fill="#202023"/>
-  <rect x="24" y="28" width="421" height="251" rx="16" fill="#252528" stroke="#39393d"/>
-  <g stroke="#303034" stroke-width="10" stroke-linecap="round">
-    <path d="M53 63h303"/><path d="M53 91h303"/><path d="M53 119h303"/><path d="M53 147h303"/>
-    <path d="M53 175h303"/><path d="M53 203h303"/><path d="M53 231h303"/>
+  <desc id="desc">A dark desktop with the black usage notch on the right edge showing five provider rings, and an OpenCode usage card beside it.</desc>
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#16181f"/>
+      <stop offset="1" stop-color="#0b0d12"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3b4a6b" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#3b4a6b" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#1f5c4d" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#1f5c4d" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="960" height="640" fill="url(#wall)"/>
+  <ellipse cx="240" cy="140" rx="320" ry="210" fill="url(#glowA)"/>
+  <ellipse cx="620" cy="540" rx="340" ry="220" fill="url(#glowB)"/>
+  <circle cx="120" cy="540" r="150" fill="none" stroke="#ffffff" stroke-opacity="0.05" stroke-width="1.5"/>
+  <circle cx="120" cy="540" r="105" fill="none" stroke="#ffffff" stroke-opacity="0.04" stroke-width="1.5"/>
+
+  <!-- Notch body moulded into the right edge -->
+  <path d="M960 12 H906 Q876 12 876 42 V598 Q876 628 906 628 H960 Z" fill="#000"/>
+
+  <!-- Provider rings -->
+  <g font-family="Inter,Segoe UI,Arial,sans-serif" text-anchor="middle" fill="#fff">
+    <!-- Claude 0% -->
+    <circle cx="925" cy="97" r="19" fill="none" stroke="#303030" stroke-width="5.8"/>
+    <g transform="translate(918.5,90.5) scale(0.13)" fill="#fff">
+      <path d="m19.6 66.5 19.7-11 .3-1-.3-.5h-1l-3.3-.2-11.2-.3L14 53l-9.5-.5-2.4-.5L0 49l.2-1.5 2-1.3 2.9.2 6.3.5 9.5.6 6.9.4L38 49.1h1.6l.2-.7-.5-.4-.4-.4L29 41l-10.6-7-5.6-4.1-3-2-1.5-2-.6-4.2 2.7-3 3.7.3.9.2 3.7 2.9 8 6.1L37 36l1.5 1.2.6-.4.1-.3-.7-1.1L33 25l-6-10.4-2.7-4.3-.7-2.6c-.3-1-.4-2-.4-3l3-4.2L28 0l4.2.6L33.8 2l2.6 6 4.1 9.3L47 29.9l2 3.8 1 3.4.3 1h.7v-.5l.5-7.2 1-8.7 1-11.2.3-3.2 1.6-3.8 3-2L61 2.6l2 2.9-.3 1.8-1.1 7.7L59 27.1l-1.5 8.2h.9l1-1.1 4.1-5.4 6.9-8.6 3-3.5L77 13l2.3-1.8h4.3l3.1 4.7-1.4 4.9-4.4 5.6-3.7 4.7-5.3 7.1-3.2 5.7.3.4h.7l12-2.6 6.4-1.1 7.6-1.3 3.5 1.6.4 1.6-1.4 3.4-8.2 2-9.6 2-14.3 3.3-.2.1.2.3 6.4.6 2.8.2h6.8l12.6 1 3.3 2 1.9 2.7-.3 2-5.1 2.6-6.8-1.6-16-3.8-5.4-1.3h-.8v.4l4.6 4.5 8.3 7.5L89 80.1l.5 2.4-1.3 2-1.4-.2-9.2-7-3.6-3-8-6.8h-.5v.7l1.8 2.7 9.8 14.7.5 4.5-.7 1.4-2.6 1-2.7-.6-5.8-8-6-9-4.7-8.2-.5.4-2.9 30.2-1.3 1.5-3 1.2-2.5-2-1.4-3 1.4-6.2 1.6-8 1.3-6.4 1.2-7.9.7-2.6v-.2H49L43 72l-9 12.3-7.2 7.6-1.7.7-3-1.5.3-2.8L24 86l10-12.8 6-7.9 4-4.6-.1-.5h-.3L17.2 77.4l-4.7.6-2-2 .2-3 1-1 8-5.5Z"/>
+    </g>
+    <text x="925" y="138" font-size="14" font-weight="650">0%</text>
+
+    <!-- Cursor 100% -->
+    <circle cx="925" cy="198" r="19" fill="none" stroke="#303030" stroke-width="5.8"/>
+    <circle cx="925" cy="198" r="19" fill="none" stroke="#ff3f00" stroke-width="3" stroke-linecap="round" pathLength="100" stroke-dasharray="100 100" transform="rotate(-90 925 198)"/>
+    <g transform="translate(918,191) scale(0.583)" fill="#fff">
+      <path d="M11.503.131 1.891 5.678a.84.84 0 0 0-.42.726v11.188c0 .3.162.575.42.724l9.609 5.55a1 1 0 0 0 .998 0l9.61-5.55a.84.84 0 0 0 .42-.724V6.404a.84.84 0 0 0-.42-.726L12.497.131a1.01 1.01 0 0 0-.996 0M2.657 6.338h18.55c.263 0 .43.287.297.515L12.23 22.918c-.062.107-.229.064-.229-.06V12.335a.59.59 0 0 0-.295-.51l-9.11-5.257c-.109-.063-.064-.23.061-.23"/>
+    </g>
+    <text x="925" y="239" font-size="14" font-weight="650">100%</text>
+
+    <!-- Codex 70% -->
+    <circle cx="925" cy="299" r="19" fill="none" stroke="#303030" stroke-width="5.8"/>
+    <circle cx="925" cy="299" r="19" fill="none" stroke="#f2ff00" stroke-width="3" stroke-linecap="round" pathLength="100" stroke-dasharray="70 100" transform="rotate(-90 925 299)"/>
+    <g transform="translate(918.4,292.4) scale(0.55)" fill="#fff">
+      <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/>
+    </g>
+    <text x="925" y="340" font-size="14" font-weight="650">70%</text>
+
+    <!-- Antigravity (no published limit) -->
+    <g opacity="0.55">
+      <circle cx="925" cy="400" r="19" fill="none" stroke="#303030" stroke-width="5.8"/>
+      <g transform="translate(918,393) scale(0.583)" fill="#fff">
+        <path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/>
+      </g>
+    </g>
+    <text x="925" y="441" font-size="14" font-weight="650">—</text>
+
+    <!-- OpenCode 100% -->
+    <circle cx="925" cy="501" r="19" fill="none" stroke="#303030" stroke-width="5.8"/>
+    <circle cx="925" cy="501" r="19" fill="none" stroke="#ff3f00" stroke-width="3" stroke-linecap="round" pathLength="100" stroke-dasharray="100 100" transform="rotate(-90 925 501)"/>
+    <g transform="translate(919,495) scale(0.5)" fill="#fff">
+      <path d="M22 24H2V0h20zM17 4.8H7v14.4h10z"/>
+    </g>
+    <text x="925" y="542" font-size="14" font-weight="650">100%</text>
+
+    <!-- settings dot at rest -->
+    <circle cx="925" cy="592" r="2.5" fill="#808080" opacity="0.5"/>
   </g>
-  <rect x="48" y="314" width="351" height="251" rx="16" fill="#252528" stroke="#39393d"/>
-  <g stroke="#303034" stroke-width="9" stroke-linecap="round">
-    <path d="M77 352h245"/><path d="M77 377h245"/><path d="M77 402h245"/><path d="M77 427h245"/>
-    <path d="M77 452h245"/><path d="M77 477h245"/><path d="M77 502h245"/><path d="M77 527h245"/>
-  </g>
 
-  <path d="M786 0h34v68c0 22-15 34-34 34h-2c-18 0-34 15-34 34v340c0 18 15 34 34 34h2c19 0 34 13 34 34v76h-34z" fill="#000"/>
-
-  <g font-family="Inter,Segoe UI,Arial,sans-serif" text-anchor="middle" fill="#fff" font-weight="700">
-    <circle cx="785" cy="150" r="20" fill="#101011" stroke="#303030" stroke-width="5"/>
-    <path d="M785 130a20 20 0 1 1-19 26" fill="none" stroke="#f2ff00" stroke-width="4" stroke-linecap="round"/>
-    <text x="785" y="157" font-size="16">✳</text><text x="785" y="191" font-size="15">73%</text>
-
-    <circle cx="785" cy="252" r="20" fill="#101011" stroke="#303030" stroke-width="5"/>
-    <path d="M785 232a20 20 0 0 1 18 11" fill="none" stroke="#00ff88" stroke-width="4" stroke-linecap="round"/>
-    <text x="785" y="259" font-size="15">◧</text><text x="785" y="293" font-size="15">21%</text>
-
-    <circle cx="785" cy="353" r="20" fill="#101011" stroke="#303030" stroke-width="5"/>
-    <text x="785" y="360" font-size="17">◆</text><text x="785" y="395" font-size="15">~18</text>
-
-    <circle cx="785" cy="455" r="20" fill="#101011" stroke="#303030" stroke-width="5"/>
-    <path d="M785 435a20 20 0 1 1-20 20" fill="none" stroke="#f2ff00" stroke-width="4" stroke-linecap="round"/>
-    <text x="785" y="462" font-size="17">✦</text><text x="785" y="497" font-size="15">52%</text>
-  </g>
-
+  <!-- Usage card -->
   <g font-family="Inter,Segoe UI,Arial,sans-serif">
-    <path d="M500 60h191a18 18 0 0 1 18 18v57l29 16-29 16v55a18 18 0 0 1-18 18H500a18 18 0 0 1-18-18V78a18 18 0 0 1 18-18z" fill="#000"/>
-    <text x="495" y="89" fill="#fff" font-size="17">✳</text>
-    <text x="521" y="89" fill="#fff" font-size="15" font-weight="700">Claude Usage</text>
-    <text x="495" y="120" fill="#fff" font-size="10">Current session</text>
-    <text x="627" y="120" fill="#808080" font-size="9">Resets in 51 min</text>
-    <rect x="495" y="129" width="201" height="5" rx="2.5" fill="#303030"/>
-    <rect x="495" y="129" width="147" height="5" rx="2.5" fill="#f2ff00"/>
-    <text x="495" y="151" fill="#fff" font-size="10">73% Used</text>
-    <text x="495" y="184" fill="#fff" font-size="10">All models</text>
-    <text x="627" y="184" fill="#808080" font-size="9">Resets Thu 12:00 AM</text>
-    <rect x="495" y="193" width="201" height="5" rx="2.5" fill="#303030"/>
-    <rect x="495" y="193" width="16" height="5" rx="2.5" fill="#00ff88"/>
-    <text x="495" y="215" fill="#fff" font-size="10">7% Used</text>
+    <path d="M630 168h200a19 19 0 0 1 19 19v52l28 17-28 17v51a19 19 0 0 1-19 19H630a19 19 0 0 1-19-19V187a19 19 0 0 1 19-19z" fill="#000"/>
+    <g transform="translate(623,190) scale(0.13)" fill="#fff">
+      <path d="m19.6 66.5 19.7-11 .3-1-.3-.5h-1l-3.3-.2-11.2-.3L14 53l-9.5-.5-2.4-.5L0 49l.2-1.5 2-1.3 2.9.2 6.3.5 9.5.6 6.9.4L38 49.1h1.6l.2-.7-.5-.4-.4-.4L29 41l-10.6-7-5.6-4.1-3-2-1.5-2-.6-4.2 2.7-3 3.7.3.9.2 3.7 2.9 8 6.1L37 36l1.5 1.2.6-.4.1-.3-.7-1.1L33 25l-6-10.4-2.7-4.3-.7-2.6c-.3-1-.4-2-.4-3l3-4.2L28 0l4.2.6L33.8 2l2.6 6 4.1 9.3L47 29.9l2 3.8 1 3.4.3 1h.7v-.5l.5-7.2 1-8.7 1-11.2.3-3.2 1.6-3.8 3-2L61 2.6l2 2.9-.3 1.8-1.1 7.7L59 27.1l-1.5 8.2h.9l1-1.1 4.1-5.4 6.9-8.6 3-3.5L77 13l2.3-1.8h4.3l3.1 4.7-1.4 4.9-4.4 5.6-3.7 4.7-5.3 7.1-3.2 5.7.3.4h.7l12-2.6 6.4-1.1 7.6-1.3 3.5 1.6.4 1.6-1.4 3.4-8.2 2-9.6 2-14.3 3.3-.2.1.2.3 6.4.6 2.8.2h6.8l12.6 1 3.3 2 1.9 2.7-.3 2-5.1 2.6-6.8-1.6-16-3.8-5.4-1.3h-.8v.4l4.6 4.5 8.3 7.5L89 80.1l.5 2.4-1.3 2-1.4-.2-9.2-7-3.6-3-8-6.8h-.5v.7l1.8 2.7 9.8 14.7.5 4.5-.7 1.4-2.6 1-2.7-.6-5.8-8-6-9-4.7-8.2-.5.4-2.9 30.2-1.3 1.5-3 1.2-2.5-2-1.4-3 1.4-6.2 1.6-8 1.3-6.4 1.2-7.9.7-2.6v-.2H49L43 72l-9 12.3-7.2 7.6-1.7.7-3-1.5.3-2.8L24 86l10-12.8 6-7.9 4-4.6-.1-.5h-.3L17.2 77.4l-4.7.6-2-2 .2-3 1-1 8-5.5Z"/>
+    </g>
+    <text x="646" y="203" fill="#fff" font-size="15" font-weight="700">OpenCode Usage</text>
+    <text x="624" y="232" fill="#fff" font-size="10.5">Monthly</text>
+    <text x="757" y="232" fill="#808080" font-size="9.5">Resets Sep 19</text>
+    <rect x="624" y="241" width="201" height="4" rx="2" fill="#2d2d2d"/>
+    <rect x="624" y="241" width="201" height="4" rx="2" fill="#ff3f00"/>
+    <text x="624" y="261" fill="#fff" font-size="9.5">100% Used</text>
+    <text x="624" y="288" fill="#fff" font-size="10.5">Current</text>
+    <text x="762" y="288" fill="#808080" font-size="9.5">Resets in 3h</text>
+    <rect x="624" y="297" width="201" height="4" rx="2" fill="#2d2d2d"/>
+    <rect x="624" y="297" width="7" height="4" rx="2" fill="#00ff88"/>
+    <text x="624" y="317" fill="#fff" font-size="9.5">0% Used</text>
   </g>
 
-  <rect x="22" y="575" width="409" height="32" rx="9" fill="#0a0a0b"/>
-  <text x="36" y="596" fill="#c9c9ce" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="12">Codenotch Cross-Platform · Windows / Linux clean-room port</text>
+  <!-- caption -->
+  <rect x="24" y="586" width="512" height="32" rx="9" fill="#0a0a0b" stroke="#26262a"/>
+  <text x="40" y="607" fill="#c9c9ce" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="12.5">Codenotch Cross-Platform · Free &amp; open source (MIT) · Windows / Linux</text>
 </svg>

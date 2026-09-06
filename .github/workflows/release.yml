@@ -1,0 +1,60 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+          - os: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Linux prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            libgtk-3-dev
+
+      - run: npm install
+
+      - run: npm run pretauri
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Codenotch Cross-Platform ${{ github.ref_name }}"
+          releaseBody: |
+            Free and open source (MIT). Take it, fork it, PR it.
+
+            All credit for the idea goes to vinzdg/codenotch — this is just an AI-prompted clone so Windows and Linux get to play too.
+
+            **Windows:** download the `-setup.exe` installer (Windows 10/11 + WebView2).
+            **Linux:** download the `.AppImage` (portable) or `.deb` (Debian/Ubuntu).
+
+            > Linux has never been tested by the maintainer (Windows only) — please open an issue with whatever breaks.
+          releaseDraft: false
+          prerelease: false

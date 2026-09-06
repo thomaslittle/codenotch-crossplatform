@@ -46,4 +46,32 @@ export interface ProviderSnapshot {
 export interface ClientSettings {
   edge: Edge;
   enabledProviders: string[];
+  /** Color scheme source. `system` follows the OS and uses default surfaces. */
+  mode: ThemeMode;
+  /** Custom notch/card surface (`#rrggbb`). Used in dark/light mode. */
+  surface: string;
+  /** Notch + card surface opacity, 0.4–1. */
+  opacity: number;
+  /** Notch scale factor, 0.7–1.3. */
+  scale: number;
+  /** Notch nudge in logical px, -200–200. */
+  offsetX: number;
+  offsetY: number;
+  /** `"primary"` or a monitor index from `list_monitors`. */
+  monitor: string;
+  /** Frosted-glass notch (Windows acrylic; best effort elsewhere). */
+  blur: boolean;
+}
+
+export type ThemeMode = "dark" | "light" | "system";
+
+export interface MonitorInfo {
+  id: string;
+  name: string | null;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  scaleFactor: number;
+  primary: boolean;
 }

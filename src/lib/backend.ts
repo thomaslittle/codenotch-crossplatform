@@ -1,107 +1,58 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Edge, ProviderSnapshot } from "../types";
-
-const demoSnapshots: ProviderSnapshot[] = [
-  {
-    id: "claude",
-    displayName: "Claude",
-    glyph: "✳",
-    fidelity: "official",
-    status: "ok",
-    headlineId: "session",
-    fetchedAt: new Date().toISOString(),
-    manageUrl: "https://claude.ai/settings/usage",
-    account: { plan: "Max", source: "Claude Code" },
-    activity: { state: "working", label: "Working" },
-    windows: [
-      {
-        id: "session",
-        label: "Current session",
-        usedFraction: 0.73,
-        resetsAt: new Date(Date.now() + 51 * 60_000).toISOString(),
-      },
-      {
-        id: "weekly_all",
-        label: "All models",
-        usedFraction: 0.07,
-        resetsAt: new Date(Date.now() + 3 * 24 * 60 * 60_000).toISOString(),
-      },
-    ],
-  },
-  {
-    id: "cursor",
-    displayName: "Cursor",
-    glyph: "⌾",
-    fidelity: "official",
-    status: "ok",
-    headlineId: "included",
-    fetchedAt: new Date().toISOString(),
-    manageUrl: "https://cursor.com/dashboard",
-    windows: [
-      {
-        id: "included",
-        label: "Included usage",
-        usedFraction: 0.21,
-        resetsAt: new Date(Date.now() + 11 * 24 * 60 * 60_000).toISOString(),
-      },
-    ],
-  },
-  {
-    id: "gemini",
-    displayName: "Antigravity",
-    glyph: "◆",
-    fidelity: "derived",
-    status: "ok",
-    fetchedAt: new Date().toISOString(),
-    manageUrl: "https://antigravity.google/",
-    displayValue: "~18",
-    message: "~18 requests today · no limit published",
-    account: { plan: "Personal", source: "Antigravity" },
-    windows: [],
-  },
-  {
-    id: "codex",
-    displayName: "Codex",
-    glyph: "✦",
-    fidelity: "official",
-    status: "ok",
-    headlineId: "primary",
-    fetchedAt: new Date().toISOString(),
-    manageUrl: "https://chatgpt.com/#settings/Account",
-    windows: [
-      {
-        id: "primary",
-        label: "5h limit",
-        usedFraction: 0.52,
-        resetsAt: new Date(Date.now() + 2 * 60 * 60_000).toISOString(),
-      },
-      {
-        id: "secondary",
-        label: "Weekly limit",
-        usedFraction: 0.13,
-        resetsAt: new Date(Date.now() + 5 * 24 * 60 * 60_000).toISOString(),
-      },
-    ],
-  },
-];
+import type { Edge, MonitorInfo, ProviderSnapshot } from "../types";
 
 export function runningInTauri(): boolean {
   return "__TAURI_INTERNALS__" in window;
 }
 
 export async function getSnapshots(): Promise<ProviderSnapshot[]> {
-  if (!runningInTauri()) return structuredClone(demoSnapshots);
-  return invoke<ProviderSnapshot[]>("get_snapshots");
+  if (runningInTauri()) return invoke<ProviderSnapshot[]>("get_snapshots");
+  // Browser dev mode: same real local readings as the Rust backend, served by
+  // the Vite `/api/snapshots` bridge (see scripts/dev-snapshots.mjs). No demo
+  // numbers — anything unreadable comes back with an honest status.
+  const res = await fetch("/api/snapshots", { signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) throw new Error(`Snapshot bridge returned HTTP ${res.status}`);
+  return (await res.json()) as ProviderSnapshot[];
 }
 
-export async function setEdge(edge: Edge, providerCount: number): Promise<void> {
+export async function setEdge(
+  edge: Edge,
+  providerCount: number,
+  scale: number,
+  monitor: string,
+  offsetX: number,
+  offsetY: number,
+): Promise<void> {
   if (!runningInTauri()) return;
-  await invoke("set_edge", { edge, providerCount });
+  await invoke("set_edge", { edge, providerCount, scale, monitor, offsetX, offsetY });
 }
 
-export async function showTooltip(edge: Edge, index: number): Promise<void> {
+export async function setBlur(enabled: boolean): Promise<void> {
   if (!runningInTauri()) return;
-  await invoke("show_tooltip", { edge, index });
+  await invoke("set_blur", { enabled }).catch(() => undefined);
+}
+
+export async function listMonitors(): Promise<MonitorInfo[]> {
+  if (!runningInTauri()) {
+    return [{ id: "primary", name: "Primary display", x: 0, y: 0, width: 1920, height: 1080, scaleFactor: 1, primary: true }];
+  }
+  return invoke<MonitorInfo[]>("list_monitors");
+}
+
+/** Resize the settings window to fit its measured content height. */
+export async function fitSettings(height: number): Promise<void> {
+  if (!runningInTauri()) return;
+  await invoke("fit_settings", { height }).catch(() => undefined);
+}
+
+export async function showTooltip(edge: Edge, index: number, scale: number): Promise<void> {
+  if (!runningInTauri()) return;
+  try {
+    await invoke("show_tooltip", { edge, index, scale });
+  } catch (error) {
+    console.error("[codenotch] show_tooltip failed:", error);
+    throw error;
+  }
 }
 
 export async function hideTooltip(): Promise<void> {
@@ -109,14 +60,27 @@ export async function hideTooltip(): Promise<void> {
   await invoke("hide_window", { label: "tooltip" });
 }
 
+/**
+ * Is the OS cursor inside the notch or tooltip window? `null` means unknown
+ * (caller keeps the plain timeout behavior).
+ */
+export async function cursorOverTooltipArea(): Promise<boolean | null> {
+  if (!runningInTauri()) return null;
+  try {
+    return await invoke<boolean | null>("cursor_over_tooltip_area");
+  } catch {
+    return null;
+  }
+}
+
 export async function openSettings(): Promise<void> {
   if (!runningInTauri()) return;
   await invoke("open_settings");
 }
 
-export async function showContextMenu(edge: Edge): Promise<void> {
+export async function showContextMenu(edge: Edge, scale: number): Promise<void> {
   if (!runningInTauri()) return;
-  await invoke("show_context_menu", { edge });
+  await invoke("show_context_menu", { edge, scale });
 }
 
 export async function hideWindow(label: string): Promise<void> {

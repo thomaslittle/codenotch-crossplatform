@@ -1,8 +1,27 @@
 # Codenotch Cross-Platform
 
-A clean-room Windows and Linux implementation of the **interaction and visual concept** from [vinzdg/codenotch](https://github.com/vinzdg/codenotch): a small black notch attached to a screen edge that shows coding-assistant usage at a glance and expands into a detailed usage card on hover.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/thomaslittle/codenotch-crossplatform)](https://github.com/thomaslittle/codenotch-crossplatform/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue)](https://github.com/thomaslittle/codenotch-crossplatform/releases)
 
-> **Clean-room note:** the upstream repository did not contain a license file when this project was created. This repository therefore does **not** copy its Swift/AppKit source, screenshots, icons, or other assets. The implementation is new code based on the public product behavior and measurable design specification. If upstream later publishes a license, this note can be revisited.
+A Windows and Linux port of the **interaction and visual concept** from [vinzdg/codenotch](https://github.com/vinzdg/codenotch): a small notch attached to a screen edge that shows coding-assistant usage at a glance and expands into a detailed usage card on hover.
+
+> **Where this came from:** the entire idea is [vinzdg](https://github.com/vinzdg)'s — this repo is literally just a couple of AI prompts because the concept deserved to exist on Windows and Linux too. All credit for the idea and design goes to the original creator; go star [vinzdg/codenotch](https://github.com/vinzdg/codenotch). No confusion intended: nothing here was our idea, we just wanted it on other operating systems. This is an independent clean-room implementation (new Rust + React code, no upstream source copied) and is not affiliated with or endorsed by the upstream project.
+
+> **Clean-room note:** the upstream repository did not contain a license file when this project was created. This repository therefore does **not** copy its Swift/AppKit source, screenshots, icons, or other assets. If upstream later publishes a license, this note can be revisited. Provider logos shown in the UI are the vendors' own marks, used for identification only.
+
+## Download
+
+Grab the latest build from the [**Releases page**](https://github.com/thomaslittle/codenotch-crossplatform/releases):
+
+- **Windows:** `Codenotch_0.1.0_x64-setup.exe` (installer, Windows 10/11 + WebView2)
+- **Linux:** `.AppImage` (portable) or `.deb` (Debian/Ubuntu)
+
+> **Linux testers wanted:** this has only ever run on Windows so far. If you're on Linux, please try a release and [open an issue](https://github.com/thomaslittle/codenotch-crossplatform/issues) with whatever breaks — desktop environment, distro, and logs included.
+
+## Free and open source, no big deal
+
+This is **MIT licensed and free forever** — use it, fork it, rip pieces out of it, whatever. If you want something changed, **pull requests are very welcome**: fork, branch, open a PR, and it'll get reviewed. Bug reports with logs and repro steps are just as appreciated. No CLA, no process, no drama.
 
 ![Static UI preview](docs/preview.svg)
 
@@ -13,10 +32,11 @@ A clean-room Windows and Linux implementation of the **interaction and visual co
 - Placement on the **right, left, top, or bottom** edge.
 - Separate notch, tooltip, context-menu, and settings windows so transparent desktop areas do not swallow pointer input.
 - Always-on-top, frameless, taskbar-hidden notch behavior.
-- Provider adapters for **Claude Code, Cursor, Codex, and Antigravity**.
+- Provider adapters for **Claude Code, Cursor, Codex, Antigravity, and OpenCode Zen**.
+- Themeable notch (dark / light / system + any custom surface color with auto-contrast text), adjustable opacity and notch scale, springy motion throughout, and honest statuses instead of invented numbers.
 - 60-second refresh cadence with a local last-good snapshot cache. If a provider temporarily fails, the previous reading is marked stale instead of disappearing.
 - Right-click menu: Settings, Refresh now, Hide for 1 hour, Quit.
-- Browser/demo mode (`npm run dev`) with representative data, so the UI can be developed without touching local credentials.
+- Browser dev mode (`npm run dev`) serves the same real local readings through a Vite `/api/snapshots` bridge (`scripts/dev-snapshots.mjs`), so no demo numbers are ever shown. Anything unreadable comes back with an honest status instead.
 
 ## Provider behavior
 
@@ -50,6 +70,10 @@ The credential is **read only**. Codenotch does not refresh or rewrite Claude's 
 The adapter reads Antigravity's existing Google credential from the operating system keyring using the same `gemini` / `antigravity` identity used by its Go keyring client. On Windows the explicit Credential Manager target is `gemini:antigravity`; on Linux it uses Secret Service. The stored value is read only and decoded in memory.
 
 It first asks Google for a real quota summary. If the account is not licensed for a metered quota response, it counts `MODEL` steps from `~/.gemini/antigravity/brain/*/.system_generated/logs/transcript.jsonl` for the local day and displays `~N` with no progress arc rather than inventing a denominator.
+
+### OpenCode Zen
+
+The adapter reads the Zen API key OpenCode stores after `/connect` (`~/.local/share/opencode/auth.json`, `opencode` entry) and polls `GET https://opencode.ai/zen/go/v1/usage` for rolling/weekly/monthly windows. The key is sent only to `opencode.ai` and never to the frontend.
 
 ## Linux windowing note
 
@@ -106,7 +130,7 @@ docs/                    architecture and platform notes
 - Provider credentials are read only; this project does not own or refresh them.
 - Cursor SQLite is opened read-only.
 - Codex usage comes from local logs and needs no secret.
-- Browser opening is restricted in the Rust command layer to the four known provider domains.
+- Browser opening is restricted in the Rust command layer to the five known provider domains.
 - The last-good snapshot cache contains display data only; provider tokens are never serialized into it.
 - No provider token is sent to the React frontend.
 
