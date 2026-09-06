@@ -7,10 +7,19 @@ import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "../lib/settings";
 import { DARK_SURFACE, LIGHT_SURFACE, THEME_PRESETS, surfaceLuminance, themeVars, useSystemLight } from "../lib/theme";
 import { checkForUpdates, type UpdateInfo } from "../lib/updates";
 import { ProviderLogo } from "../components/ProviderLogo";
-import type { ClientSettings, Edge, GaugeStyle, MonitorInfo, ProviderSnapshot, ThemeMode } from "../types";
+import type { ClientSettings, Edge, GaugeStyle, MonitorInfo, ProviderSnapshot, ShellStyle, ThemeMode } from "../types";
 
 const edges: Edge[] = ["right", "left", "top", "bottom"];
 const modes: ThemeMode[] = ["dark", "light", "system"];
+const shellStyles: Array<{ id: ShellStyle; label: string; description: string }> = [
+  { id: "tab", label: "Tab", description: "The original moulded screen-edge tab." },
+  { id: "bubble", label: "Bubble", description: "Separate rounded provider bubbles with no shared body." },
+  { id: "sharp", label: "Sharp", description: "Crisp rectangular body with minimal rounding." },
+  { id: "trapezoid", label: "Trapezoid", description: "Angled inner edge for a more technical silhouette." },
+  { id: "pill", label: "Pill", description: "Soft capsule body with strong rounded corners." },
+  { id: "rail", label: "Rail", description: "Thin dock rail behind the gauges for a compact look." },
+  { id: "ghost", label: "Ghost", description: "No shared background — gauges float directly over the desktop." },
+];
 const gaugeStyles: Array<{ id: GaugeStyle; label: string; description: string }> = [
   { id: "classic", label: "Classic", description: "Original circular headline usage ring with percentage." },
   { id: "slim", label: "Slim", description: "Provider icon with one clean horizontal headline meter." },
@@ -246,6 +255,22 @@ export function SettingsView() {
             </motion.button>
           ))}
         </div>
+
+        <p className="appearance-label" style={{ marginTop: 12 }}>Shell</p>
+        <div className="mode-segmented shell-picker">
+          {shellStyles.map((shell) => (
+            <motion.button
+              key={shell.id}
+              type="button"
+              className={settings.shellStyle === shell.id ? "is-selected" : ""}
+              title={shell.description}
+              onClick={() => update({ ...settings, shellStyle: shell.id })}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 500, damping: 25 }}
+            >{shell.label}</motion.button>
+          ))}
+        </div>
+
         <p className="appearance-label" style={{ marginTop: 12 }}>Gauge</p>
         <div className="mode-segmented">
           {gaugeStyles.map((gauge) => (
