@@ -1,8 +1,7 @@
 import { emitTo } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { motion } from "motion/react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { autohideSupported, REPO_URL, fitSettings, getSnapshots, hideWindow, listMonitors, openExternal, runningInTauri } from "../lib/backend";
+import { useEffect, useState } from "react";
+import { autohideSupported, REPO_URL, getSnapshots, hideWindow, listMonitors, openExternal, runningInTauri } from "../lib/backend";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "../lib/settings";
 import { DARK_SURFACE, LIGHT_SURFACE, THEME_PRESETS, surfaceLuminance, themeVars, useSystemLight } from "../lib/theme";
 import { checkForUpdates, type UpdateInfo } from "../lib/updates";
@@ -52,7 +51,6 @@ export function SettingsView() {
   const chrome = settings.mode === "light" || (settings.mode === "system" && sysLight)
     ? "#f2f3f5"
     : "#090909";
-  const lastFit = useRef(0);
 
   useEffect(() => { void getSnapshots().then(setSnapshots).catch(() => undefined); }, []);
   useEffect(() => { void listMonitors().then(setMonitors).catch(() => undefined); }, []);
@@ -80,34 +78,6 @@ export function SettingsView() {
       .then((info) => { setUpdateInfo(info); setCheckingUpdate(false); })
       .catch(() => setCheckingUpdate(false));
   };
-
-  useLayoutEffect(() => {
-    const el = document.querySelector(".settings-page");
-    if (!(el instanceof HTMLElement)) return;
-    const report = () => {
-      const height = Math.ceil(el.scrollHeight);
-      if (height > 0 && Math.abs(height - lastFit.current) > 2) {
-        lastFit.current = height;
-        void fitSettings(height).then(() => {
-          if (!runningInTauri()) return;
-          const settingsWindow = getCurrentWindow();
-          void settingsWindow.center().catch(() => undefined);
-          window.setTimeout(() => {
-            void settingsWindow.center().catch(() => undefined);
-          }, 50);
-        });
-      }
-    };
-    report();
-    const observer = new ResizeObserver(report);
-    observer.observe(el);
-    const poll = window.setInterval(report, 1000);
-    return () => {
-      observer.disconnect();
-      window.clearInterval(poll);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshots.length, monitors.length, settings.autoHide]);
 
   const update = (next: ClientSettings) => {
     setSettings(next);
