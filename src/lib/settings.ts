@@ -22,6 +22,8 @@ export const DEFAULT_SETTINGS: ClientSettings = {
   offsetX: 0,
   offsetY: 0,
   monitor: "primary",
+  autoHide: false,
+  autoHideDelaySec: 5,
 };
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
@@ -49,7 +51,21 @@ export function loadSettings(): ClientSettings {
     const offsetX = clampNumber(parsed.offsetX, -200, 200, DEFAULT_SETTINGS.offsetX);
     const offsetY = clampNumber(parsed.offsetY, -200, 200, DEFAULT_SETTINGS.offsetY);
     const monitor = typeof parsed.monitor === "string" && parsed.monitor ? parsed.monitor : DEFAULT_SETTINGS.monitor;
-    return { edge, enabledProviders, mode, surface, opacity, scale, offsetX, offsetY, monitor };
+    const autoHide = typeof parsed.autoHide === "boolean" ? parsed.autoHide : DEFAULT_SETTINGS.autoHide;
+    const autoHideDelaySec = clampNumber(parsed.autoHideDelaySec, 1, 60, DEFAULT_SETTINGS.autoHideDelaySec);
+    return {
+      edge,
+      enabledProviders,
+      mode,
+      surface,
+      opacity,
+      scale,
+      offsetX,
+      offsetY,
+      monitor,
+      autoHide,
+      autoHideDelaySec,
+    };
   } catch {
     return DEFAULT_SETTINGS;
   }
