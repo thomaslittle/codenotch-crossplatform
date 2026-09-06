@@ -9,9 +9,9 @@ use walkdir::WalkDir;
 
 const ENDPOINT: &str = "https://api.anthropic.com/api/oauth/usage";
 const MANAGE_URL: &str = "https://claude.ai/settings/usage";
-// Anthropic's OAuth usage endpoint aggressively throttles generic/absent user
-// agents. Claude Code itself identifies usage requests with this product
-// prefix; keeping the expected identity avoids the persistent 429 bucket.
+// The OAuth usage endpoint partitions/throttles clients by request identity.
+// Claude Code usage requests carry a `claude-code/<version>` user-agent; use
+// the same compatibility prefix rather than falling into the generic 429 path.
 const CLAUDE_USAGE_USER_AGENT: &str = "claude-code/2.1.34";
 
 pub async fn snapshot() -> ProviderSnapshot {
