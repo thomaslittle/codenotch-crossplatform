@@ -48,6 +48,8 @@ export interface ClientSettings {
   enabledProviders: string[];
   /** Named notch visual preset; `custom` preserves the current freeform appearance controls. */
   theme: ThemePresetId;
+  /** Ring treatment used by provider gauges. */
+  gaugeStyle: GaugeStyle;
   /** Color scheme source. `system` follows the OS and uses default surfaces. */
   mode: ThemeMode;
   /** Custom notch/card surface (`#rrggbb`). Used in dark/light mode. */
@@ -69,6 +71,7 @@ export interface ClientSettings {
 
 export type ThemeMode = "dark" | "light" | "system";
 export type ThemePresetId = "custom" | "midnight" | "graphite" | "abyss" | "forest" | "plum";
+export type GaugeStyle = "classic" | "slim" | "halo";
 
 export interface MonitorInfo {
   id: string;
