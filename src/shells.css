@@ -33,6 +33,46 @@ html[data-shell="ghost"] .notch-shell::after {
   background-image: none;
 }
 
+/* Minimal shells still expose a tiny edge handle. Without this, their gauges
+   can slide completely out of sight when auto-hide retracts the native shell. */
+html[data-shell="bubble"] .edge-right::after,
+html[data-shell="ghost"] .edge-right::after {
+  display: block;
+  inset: var(--curl) 0 var(--curl) auto;
+  width: 5px;
+  background: var(--black);
+  border-radius: 6px 0 0 6px;
+  opacity: .6;
+}
+html[data-shell="bubble"] .edge-left::after,
+html[data-shell="ghost"] .edge-left::after {
+  display: block;
+  inset: var(--curl) auto var(--curl) 0;
+  width: 5px;
+  background: var(--black);
+  border-radius: 0 6px 6px 0;
+  opacity: .6;
+}
+html[data-shell="bubble"] .edge-top::after,
+html[data-shell="ghost"] .edge-top::after {
+  display: block;
+  inset: 0 var(--curl) auto var(--curl);
+  height: 5px;
+  background: var(--black);
+  border-radius: 0 0 6px 6px;
+  opacity: .6;
+}
+html[data-shell="bubble"] .edge-bottom::after,
+html[data-shell="ghost"] .edge-bottom::after {
+  display: block;
+  inset: auto var(--curl) 0 var(--curl);
+  height: 5px;
+  background: var(--black);
+  border-radius: 6px 6px 0 0;
+  opacity: .6;
+}
+html[data-shell="ghost"] .notch-shell::after { opacity: .28; }
+
 /* BUBBLE — no shared body. Every provider is its own little tile. */
 html[data-shell="bubble"] .provider-cell {
   background: var(--black);
