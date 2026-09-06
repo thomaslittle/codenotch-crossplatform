@@ -1,10 +1,10 @@
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { formatPercent, formatReset } from "../lib/usage";
+import { formatPercent, formatReset, remainingFraction } from "../lib/usage";
 import { runningInTauri } from "../lib/backend";
 import { loadSettings } from "../lib/settings";
-import { bandFor, resolveSurface, themeVars, useSystemLight } from "../lib/theme";
+import { bandForRemaining, resolveSurface, themeVars, useSystemLight } from "../lib/theme";
 import { ProviderLogo } from "../components/ProviderLogo";
 import type { Edge, ProviderSnapshot } from "../types";
 
@@ -62,30 +62,33 @@ export function TooltipView() {
           <strong>{snapshot.displayName} Usage</strong>
           {snapshot.fidelity !== "official" && <span className="fidelity-badge">~ {snapshot.fidelity}</span>}
         </header>
-        {snapshot.windows.length ? snapshot.windows.map((window, windowIndex) => (
-          <motion.div
-            className="limit-block"
-            key={window.id}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2, delay: 0.05 + windowIndex * 0.05, ease: "easeOut" }}
-          >
-            <div className="limit-line">
-              <span>{window.label}</span>
-              <span className="reset-copy">{formatReset(window.resetsAt)}</span>
-            </div>
-            <div className="limit-track" aria-hidden="true">
-              <motion.span
-                className="limit-fill"
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, Math.max(0, window.usedFraction * 100))}%` }}
-                transition={{ type: "spring", stiffness: 90, damping: 20, delay: 0.08 + windowIndex * 0.05 }}
-                style={{ background: bandFor(surface, window.usedFraction) }}
-              />
-            </div>
-            <span className="used-copy">{formatPercent(window.usedFraction)} Used</span>
-          </motion.div>
-        )) : (
+        {snapshot.windows.length ? snapshot.windows.map((window, windowIndex) => {
+          const remaining = remainingFraction(window.usedFraction);
+          return (
+            <motion.div
+              className="limit-block"
+              key={window.id}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, delay: 0.05 + windowIndex * 0.05, ease: "easeOut" }}
+            >
+              <div className="limit-line">
+                <span>{window.label}</span>
+                <span className="reset-copy">{formatReset(window.resetsAt)}</span>
+              </div>
+              <div className="limit-track" aria-hidden="true">
+                <motion.span
+                  className="limit-fill"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${remaining * 100}%` }}
+                  transition={{ type: "spring", stiffness: 90, damping: 20, delay: 0.08 + windowIndex * 0.05 }}
+                  style={{ background: bandForRemaining(surface, remaining) }}
+                />
+              </div>
+              <span className="used-copy">{formatPercent(remaining)} Remaining</span>
+            </motion.div>
+          );
+        }) : (
           <p className="status-copy">{snapshot.message ?? (snapshot.status === "ok" ? "No usage window is available yet." : snapshot.status)}</p>
         )}
         {snapshot.activity && snapshot.activity.state !== "idle" && (
