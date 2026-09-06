@@ -45,7 +45,13 @@ export function loadSettings(): ClientSettings {
       ? parsed.enabledProviders.filter((value): value is string => typeof value === "string")
       : DEFAULT_SETTINGS.enabledProviders;
     const theme = isThemePreset(parsed.theme) ? parsed.theme : DEFAULT_SETTINGS.theme;
-    const shellStyle = isShellStyle(parsed.shellStyle) ? parsed.shellStyle : DEFAULT_SETTINGS.shellStyle;
+    // Rail never developed into a strong visual design. Keep it readable as a
+    // legacy stored value, but migrate it to the supported Glass Dock shell.
+    const shellStyle = parsed.shellStyle === "rail"
+      ? "dock"
+      : isShellStyle(parsed.shellStyle)
+        ? parsed.shellStyle
+        : DEFAULT_SETTINGS.shellStyle;
     const gaugeStyle = isGaugeStyle(parsed.gaugeStyle) ? parsed.gaugeStyle : DEFAULT_SETTINGS.gaugeStyle;
     const mode = isThemeMode(parsed.mode) ? parsed.mode : DEFAULT_SETTINGS.mode;
     let surface = isSurface(parsed.surface) ? parsed.surface : DEFAULT_SETTINGS.surface;
@@ -93,7 +99,7 @@ function isEdge(value: unknown): value is Edge {
 }
 
 function isShellStyle(value: unknown): value is ShellStyle {
-  const styles: readonly ShellStyle[] = ["tab", "bubble", "sharp", "trapezoid", "pill", "rail", "dock", "ghost"];
+  const styles: readonly ShellStyle[] = ["tab", "bubble", "sharp", "trapezoid", "pill", "dock", "dock3d", "ghost"];
   return typeof value === "string" && styles.includes(value as ShellStyle);
 }
 
