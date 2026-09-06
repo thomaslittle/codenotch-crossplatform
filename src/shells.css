@@ -27,15 +27,17 @@ html[data-shell="sharp"] .notch-shell::after,
 html[data-shell="trapezoid"] .notch-shell::after,
 html[data-shell="pill"] .notch-shell::after,
 html[data-shell="rail"] .notch-shell::after,
+html[data-shell="dock"] .notch-shell::after,
 html[data-shell="ghost"] .notch-shell::before,
 html[data-shell="ghost"] .notch-shell::after {
   display: none;
   background-image: none;
 }
 
-/* Minimal shells still expose a tiny edge handle. Without this, their gauges
-   can slide completely out of sight when auto-hide retracts the native shell. */
+/* Minimal/floating shells still expose a tiny edge handle. Without this,
+   auto-hide could retract every visible pixel of the shell. */
 html[data-shell="bubble"] .edge-right::after,
+html[data-shell="dock"] .edge-right::after,
 html[data-shell="ghost"] .edge-right::after {
   display: block;
   inset: var(--curl) 0 var(--curl) auto;
@@ -45,6 +47,7 @@ html[data-shell="ghost"] .edge-right::after {
   opacity: .6;
 }
 html[data-shell="bubble"] .edge-left::after,
+html[data-shell="dock"] .edge-left::after,
 html[data-shell="ghost"] .edge-left::after {
   display: block;
   inset: var(--curl) auto var(--curl) 0;
@@ -54,6 +57,7 @@ html[data-shell="ghost"] .edge-left::after {
   opacity: .6;
 }
 html[data-shell="bubble"] .edge-top::after,
+html[data-shell="dock"] .edge-top::after,
 html[data-shell="ghost"] .edge-top::after {
   display: block;
   inset: 0 var(--curl) auto var(--curl);
@@ -63,6 +67,7 @@ html[data-shell="ghost"] .edge-top::after {
   opacity: .6;
 }
 html[data-shell="bubble"] .edge-bottom::after,
+html[data-shell="dock"] .edge-bottom::after,
 html[data-shell="ghost"] .edge-bottom::after {
   display: block;
   inset: auto var(--curl) 0 var(--curl);
@@ -71,6 +76,7 @@ html[data-shell="ghost"] .edge-bottom::after {
   border-radius: 6px 6px 0 0;
   opacity: .6;
 }
+html[data-shell="dock"] .notch-shell::after { opacity: .34; }
 html[data-shell="ghost"] .notch-shell::after { opacity: .28; }
 
 /* BUBBLE — no shared body. Every provider is its own little tile. */
@@ -179,54 +185,137 @@ html[data-shell="pill"] .edge-bottom::before {
   border-radius: 34px 34px 0 0;
 }
 
-/* RAIL — a narrow dock strip with gauges intentionally floating off it. */
+/* RAIL — a genuinely thin guide line, with gauge nodes sitting on it. */
 html[data-shell="rail"] .edge-right::before {
   display: block;
   top: var(--curl);
   bottom: var(--curl);
-  right: 0;
+  right: 33px;
   left: auto;
-  width: 24px;
-  background: var(--black);
-  border-radius: 14px 0 0 14px;
+  width: 4px;
+  background: color-mix(in srgb, var(--text) 24%, transparent);
+  border-radius: 999px;
 }
 html[data-shell="rail"] .edge-left::before {
   display: block;
   top: var(--curl);
   bottom: var(--curl);
-  left: 0;
+  left: 33px;
   right: auto;
-  width: 24px;
-  background: var(--black);
-  border-radius: 0 14px 14px 0;
+  width: 4px;
+  background: color-mix(in srgb, var(--text) 24%, transparent);
+  border-radius: 999px;
 }
 html[data-shell="rail"] .edge-top::before {
   display: block;
-  top: 0;
+  top: 27px;
   bottom: auto;
   left: var(--curl);
   right: var(--curl);
-  height: 24px;
-  background: var(--black);
-  border-radius: 0 0 14px 14px;
+  height: 4px;
+  background: color-mix(in srgb, var(--text) 24%, transparent);
+  border-radius: 999px;
 }
 html[data-shell="rail"] .edge-bottom::before {
   display: block;
   top: auto;
-  bottom: 0;
+  bottom: 27px;
   left: var(--curl);
   right: var(--curl);
-  height: 24px;
-  background: var(--black);
-  border-radius: 14px 14px 0 0;
+  height: 4px;
+  background: color-mix(in srgb, var(--text) 24%, transparent);
+  border-radius: 999px;
 }
 html[data-shell="rail"] .provider-ring {
-  background: color-mix(in srgb, var(--black) 84%, transparent);
-  border: 1px solid var(--row-border);
-  border-radius: 14px;
-  backdrop-filter: blur(7px);
+  background: color-mix(in srgb, var(--black) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
+  border-radius: 15px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .2);
+  backdrop-filter: blur(9px) saturate(1.15);
 }
-html[data-shell="rail"] .settings-orb .orb-cog { opacity: .55; }
+html[data-shell="rail"] .provider-percent {
+  font-size: 12px;
+  opacity: .9;
+}
+html[data-shell="rail"] .settings-orb {
+  background: color-mix(in srgb, var(--black) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
+  backdrop-filter: blur(9px) saturate(1.15);
+}
+html[data-shell="rail"] .settings-orb .orb-cog { opacity: .68; }
+
+/* DOCK — floating translucent desktop dock. The native window still touches
+   the screen edge for reliable positioning/auto-hide, but the visible body is
+   inset so it reads as a detached glass shelf. */
+html[data-shell="dock"] .edge-right::before,
+html[data-shell="dock"] .edge-left::before {
+  display: block;
+  inset: var(--curl) 7px;
+  background: color-mix(in srgb, var(--black) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 25px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .28), inset 0 1px 0 color-mix(in srgb, var(--text) 11%, transparent);
+  backdrop-filter: blur(18px) saturate(1.35);
+}
+html[data-shell="dock"] .edge-top::before,
+html[data-shell="dock"] .edge-bottom::before {
+  display: block;
+  inset: 7px var(--curl);
+  background: color-mix(in srgb, var(--black) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 25px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .28), inset 0 1px 0 color-mix(in srgb, var(--text) 11%, transparent);
+  backdrop-filter: blur(18px) saturate(1.35);
+}
+html[data-shell="dock"] .provider-ring {
+  background: color-mix(in srgb, var(--black) 38%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: 15px;
+  box-shadow: 0 5px 13px rgba(0, 0, 0, .18);
+  backdrop-filter: blur(8px);
+}
+html[data-shell="dock"] .provider-ring,
+html[data-shell="dock"] .provider-cell {
+  transition: transform 190ms cubic-bezier(.2,.85,.25,1.2), opacity 180ms ease;
+}
+html[data-shell="dock"] .edge-top .provider-cell:hover .provider-ring,
+html[data-shell="dock"] .edge-top .provider-cell:focus-visible .provider-ring {
+  transform: translateY(5px) scale(1.12);
+}
+html[data-shell="dock"] .edge-bottom .provider-cell:hover .provider-ring,
+html[data-shell="dock"] .edge-bottom .provider-cell:focus-visible .provider-ring {
+  transform: translateY(-5px) scale(1.12);
+}
+html[data-shell="dock"] .edge-right .provider-cell:hover .provider-ring,
+html[data-shell="dock"] .edge-right .provider-cell:focus-visible .provider-ring {
+  transform: translateX(-5px) scale(1.12);
+}
+html[data-shell="dock"] .edge-left .provider-cell:hover .provider-ring,
+html[data-shell="dock"] .edge-left .provider-cell:focus-visible .provider-ring {
+  transform: translateX(5px) scale(1.12);
+}
+html[data-shell="dock"] .provider-cell:hover + .provider-cell .provider-ring,
+html[data-shell="dock"] .provider-cell:has(+ .provider-cell:hover) .provider-ring {
+  transform: scale(1.045);
+}
+html[data-shell="dock"] .provider-percent {
+  font-size: 12px;
+  opacity: .9;
+}
+html[data-shell="dock"] .settings-orb {
+  width: 39px;
+  height: 39px;
+  background: color-mix(in srgb, var(--black) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  box-shadow: 0 5px 13px rgba(0, 0, 0, .18);
+  backdrop-filter: blur(10px);
+}
+html[data-shell="dock"] .settings-orb .orb-cog {
+  width: 16px;
+  height: 16px;
+  opacity: .7;
+  transform: none;
+}
 
 /* GHOST — zero shared chrome. Only gauges/icons remain. */
 html[data-shell="ghost"] .provider-ring {
@@ -249,10 +338,10 @@ html[data-shell="ghost"] .settings-orb .orb-cog {
   transform: none;
 }
 
-/* Keep provider bubbles/ghost gauges tight when paired with the compact
-   Stacked / Columns / Micro layouts. */
+/* Keep floating/minimal gauges tight when paired with Stacked / Columns / Micro. */
 html[data-shell="bubble"] .provider-cell.is-compact,
 html[data-shell="rail"] .provider-cell.is-compact,
+html[data-shell="dock"] .provider-cell.is-compact,
 html[data-shell="ghost"] .provider-cell.is-compact {
   width: 44px;
   min-width: 44px;
