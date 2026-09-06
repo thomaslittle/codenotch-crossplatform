@@ -5,20 +5,28 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 
-const MANAGE_URL: &str = "https://opencode.ai/docs/zen/";
+const MANAGE_URL: &str = "https://opencode.ai/go";
 const USAGE_ENDPOINT: &str = "https://opencode.ai/zen/go/v1/usage";
 
+struct SavedCredential {
+    key: String,
+    provider_id: &'static str,
+}
+
 pub async fn snapshot() -> ProviderSnapshot {
-    let api_key = match read_api_key() {
-        Ok(key) => key,
+    let credential = match read_api_key() {
+        Ok(credential) => credential,
         Err(message) => return ProviderSnapshot::unavailable(
             "opencode", "OpenCode", "▣", "needsAuth", message, MANAGE_URL, None,
         ),
     };
     let account = Some(ProviderAccount {
         label: None,
-        plan: Some("Zen".into()),
-        source: Some("OpenCode".into()),
+        plan: Some("Go".into()),
+        source: Some(match credential.provider_id {
+            "opencode-go" => "OpenCode Go".into(),
+            _ => "OpenCode".into(),
+        }),
     });
 
     let client = match reqwest::Client::builder().timeout(Duration::from_secs(15)).build() {
@@ -27,19 +35,27 @@ pub async fn snapshot() -> ProviderSnapshot {
     };
     let response = match client
         .get(USAGE_ENDPOINT)
-        .header(reqwest::header::AUTHORIZATION, format!("Bearer {api_key}"))
+        .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", credential.key))
         .send()
         .await
     {
         Ok(response) => response,
-        Err(error) => return ProviderSnapshot::unavailable("opencode", "OpenCode", "▣", "error", format!("OpenCode usage request failed: {error}"), MANAGE_URL, account),
+        Err(error) => return ProviderSnapshot::unavailable("opencode", "OpenCode", "▣", "error", format!("OpenCode Go usage request failed: {error}"), MANAGE_URL, account),
     };
     if matches!(response.status().as_u16(), 401 | 403) {
-        return ProviderSnapshot::unavailable("opencode", "OpenCode", "▣", "needsAuth", "OpenCode rejected the saved Zen API key. Run `/connect` in OpenCode and paste a fresh key.", MANAGE_URL, account);
+        return ProviderSnapshot::unavailable(
+            "opencode",
+            "OpenCode",
+            "▣",
+            "needsAuth",
+            "OpenCode Go rejected the saved API key. Run `/connect` in OpenCode, choose OpenCode Go, and paste a fresh key.",
+            MANAGE_URL,
+            account,
+        );
     }
     if !response.status().is_success() {
         let status = response.status();
-        return ProviderSnapshot::unavailable("opencode", "OpenCode", "▣", "error", format!("OpenCode usage endpoint returned {status}"), MANAGE_URL, account);
+        return ProviderSnapshot::unavailable("opencode", "OpenCode", "▣", "error", format!("OpenCode Go usage endpoint returned {status}"), MANAGE_URL, account);
     }
     match response.json::<Value>().await {
         Ok(body) => match parse_usage(&body) {
@@ -56,7 +72,7 @@ pub async fn snapshot() -> ProviderSnapshot {
             }
             Err(message) => ProviderSnapshot::unavailable("opencode", "OpenCode", "▣", "error", message, MANAGE_URL, account),
         },
-        Err(error) => ProviderSnapshot::unavailable("opencode", "OpenCode", "▣", "error", format!("Could not decode OpenCode usage: {error}"), MANAGE_URL, account),
+        Err(error) => ProviderSnapshot::unavailable("opencode", "OpenCode", "▣", "error", format!("Could not decode OpenCode Go usage: {error}"), MANAGE_URL, account),
     }
 }
 
@@ -76,19 +92,36 @@ fn auth_paths() -> Vec<PathBuf> {
     paths
 }
 
-fn read_api_key() -> Result<String, String> {
+fn credential_from_auth(root: &Value) -> Option<SavedCredential> {
+    // OpenCode Go is its own provider id. Prefer it when both Go and Zen are
+    // connected, but retain the legacy `opencode` fallback because the same
+    // account key may already be present there from an older setup.
+    for provider_id in ["opencode-go", "opencode"] {
+        if let Some(key) = root
+            .get(provider_id)
+            .and_then(|entry| entry.get("key"))
+            .and_then(Value::as_str)
+            .filter(|key| !key.is_empty())
+        {
+            return Some(SavedCredential { key: key.to_owned(), provider_id });
+        }
+    }
+    None
+}
+
+fn read_api_key() -> Result<SavedCredential, String> {
     let searched = auth_paths();
     let mut tried = Vec::new();
     for path in &searched {
         tried.push(path.display().to_string());
         let Ok(text) = fs::read_to_string(path) else { continue };
         let Ok(root) = serde_json::from_str::<Value>(&text) else { continue };
-        if let Some(key) = root.get("opencode").and_then(|entry| entry.get("key")).and_then(Value::as_str).filter(|key| !key.is_empty()) {
-            return Ok(key.to_owned());
+        if let Some(credential) = credential_from_auth(&root) {
+            return Ok(credential);
         }
-        return Err("OpenCode is not connected to Zen (no `opencode` key in auth.json). Run `/connect` in OpenCode and choose OpenCode Zen.".into());
+        return Err("OpenCode is installed, but neither OpenCode Go nor OpenCode Zen is connected in auth.json. Run `/connect` in OpenCode and choose OpenCode Go.".into());
     }
-    Err(format!("OpenCode auth was not found (looked in {}). Run `/connect` in OpenCode first.", tried.join(", ")))
+    Err(format!("OpenCode auth was not found (looked in {}). Run `/connect` in OpenCode and choose OpenCode Go.", tried.join(", ")))
 }
 
 /// Headline the most-constrained window so a full monthly quota reads 100%
@@ -100,7 +133,8 @@ fn headline_id(windows: &[LimitWindow]) -> Option<String> {
         .map(|window| window.id.clone())
 }
 
-fn parse_usage(root: &Value) -> Result<Vec<LimitWindow>, String> {    let usage = root.get("usage").unwrap_or(root);
+fn parse_usage(root: &Value) -> Result<Vec<LimitWindow>, String> {
+    let usage = root.get("usage").unwrap_or(root);
     let mut windows = Vec::new();
     for (id, label) in [("rolling", "Current"), ("weekly", "Weekly"), ("monthly", "Monthly")] {
         let Some(bucket) = usage.get(id) else { continue };
@@ -112,7 +146,7 @@ fn parse_usage(root: &Value) -> Result<Vec<LimitWindow>, String> {    let usage 
             .map(|date| date.with_timezone(&Utc));
         windows.push(LimitWindow { id: id.into(), label: label.into(), used_fraction: percent / 100.0, resets_at });
     }
-    if windows.is_empty() { Err("OpenCode returned no usage windows.".into()) } else { Ok(windows) }
+    if windows.is_empty() { Err("OpenCode Go returned no usage windows.".into()) } else { Ok(windows) }
 }
 
 #[cfg(test)]
@@ -120,7 +154,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_zen_go_usage() {
+    fn prefers_opencode_go_auth_key() {
+        let root: Value = serde_json::json!({
+            "opencode": {"type": "api", "key": "zen-key"},
+            "opencode-go": {"type": "api", "key": "go-key"}
+        });
+        let credential = credential_from_auth(&root).unwrap();
+        assert_eq!(credential.provider_id, "opencode-go");
+        assert_eq!(credential.key, "go-key");
+    }
+
+    #[test]
+    fn accepts_legacy_opencode_auth_key() {
+        let root: Value = serde_json::json!({
+            "opencode": {"type": "api", "key": "legacy-key"}
+        });
+        let credential = credential_from_auth(&root).unwrap();
+        assert_eq!(credential.provider_id, "opencode");
+        assert_eq!(credential.key, "legacy-key");
+    }
+
+    #[test]
+    fn parses_go_usage() {
         let body: Value = serde_json::json!({
             "usage": {
                 "rolling": {"status": "ok", "percent": 0, "resetsAt": "2026-09-06T05:09:17.909Z"},
