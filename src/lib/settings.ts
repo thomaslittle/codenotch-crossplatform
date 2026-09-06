@@ -1,20 +1,12 @@
 import type { ClientSettings, Edge } from "../types";
-import { isSurface, isThemeMode } from "./theme";
+import { getThemePreset, isSurface, isThemeMode, isThemePreset } from "./theme";
 
 const STORAGE_KEY = "codenotch-crossplatform.settings.v1";
-
-/** Pre-color-picker theme names → their surfaces. */
-const LEGACY_THEMES: Record<string, string> = {
-  midnight: "#000000",
-  graphite: "#16181d",
-  abyss: "#0b1526",
-  forest: "#0c1710",
-  plum: "#170f1c",
-};
 
 export const DEFAULT_SETTINGS: ClientSettings = {
   edge: "right",
   enabledProviders: ["claude", "cursor", "codex", "gemini", "opencode"],
+  theme: "custom",
   mode: "system",
   surface: "#000000",
   opacity: 1,
@@ -36,15 +28,18 @@ export function loadSettings(): ClientSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<ClientSettings> & { theme?: unknown };
+    const parsed = JSON.parse(raw) as Partial<ClientSettings>;
     const edge = isEdge(parsed.edge) ? parsed.edge : DEFAULT_SETTINGS.edge;
     const enabledProviders = Array.isArray(parsed.enabledProviders)
       ? parsed.enabledProviders.filter((value): value is string => typeof value === "string")
       : DEFAULT_SETTINGS.enabledProviders;
+    const theme = isThemePreset(parsed.theme) ? parsed.theme : DEFAULT_SETTINGS.theme;
     const mode = isThemeMode(parsed.mode) ? parsed.mode : DEFAULT_SETTINGS.mode;
     let surface = isSurface(parsed.surface) ? parsed.surface : DEFAULT_SETTINGS.surface;
-    if (typeof parsed.theme === "string" && LEGACY_THEMES[parsed.theme]) {
-      surface = LEGACY_THEMES[parsed.theme];
+    // Old builds stored these exact names in `theme`; preserve their original
+    // surfaces when loading that payload, while `custom` keeps freeform color.
+    if (theme !== "custom") {
+      surface = getThemePreset(theme).surface;
     }
     const opacity = clampNumber(parsed.opacity, 0, 1, DEFAULT_SETTINGS.opacity);
     const scale = clampNumber(parsed.scale, 0.7, 1.3, DEFAULT_SETTINGS.scale);
@@ -56,6 +51,7 @@ export function loadSettings(): ClientSettings {
     return {
       edge,
       enabledProviders,
+      theme,
       mode,
       surface,
       opacity,
