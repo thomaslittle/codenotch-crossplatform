@@ -56,6 +56,8 @@ export interface ClientSettings {
   mode: ThemeMode;
   /** Custom notch/card surface (`#rrggbb`). Used in dark/light mode. */
   surface: string;
+  /** Gauge/highlight accent (`#rrggbb`). Quota amount is conveyed by fill length, not semantic traffic-light colors. */
+  accent: string;
   /** Notch + card surface opacity, 0–1. */
   opacity: number;
   /** Notch scale factor, 0.7–1.3. */
