@@ -78,7 +78,7 @@ pub async fn snapshot() -> ProviderSnapshot {
             "OpenRouter",
             "OR",
             "needsAuth",
-            "OpenRouter rejected the discovered API key. Refresh the key in OpenRouter or the T3 provider instance that owns it.",
+            "OpenRouter rejected the discovered API key. Refresh the key in OpenRouter, OpenCode, or the T3 provider instance that owns it.",
             MANAGE_URL,
             Some(account_from_source(&credential.source, None, None)),
         );
@@ -266,10 +266,61 @@ fn read_api_key() -> Result<Credential, String> {
         }
     }
 
+    // T3 can run OpenCode as its provider, in which case the OpenRouter key is
+    // owned by OpenCode rather than copied into T3's provider environment.
+    // OpenCode stores connected provider credentials in auth.json on every OS.
+    for auth_path in opencode_auth_paths() {
+        if let Some(credential) = credential_from_opencode_auth(&auth_path) {
+            return Ok(credential);
+        }
+    }
+
     Err(
-        "OpenRouter API key was not found. Codenotch checks OPENROUTER_API_KEY and T3 Code provider instances configured to use openrouter.ai."
+        "OpenRouter API key was not found. Codenotch checks OPENROUTER_API_KEY, T3 Code router instances, and OpenCode's saved OpenRouter connection."
             .into(),
     )
+}
+
+fn opencode_auth_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Some(xdg) = std::env::var_os("XDG_DATA_HOME") {
+        let xdg = PathBuf::from(xdg);
+        if !xdg.as_os_str().is_empty() {
+            paths.push(xdg.join("opencode").join("auth.json"));
+        }
+    }
+    if let Some(home) = dirs::home_dir() {
+        let default = home
+            .join(".local")
+            .join("share")
+            .join("opencode")
+            .join("auth.json");
+        if !paths.contains(&default) {
+            paths.push(default);
+        }
+    }
+    paths
+}
+
+fn credential_from_opencode_auth(path: &Path) -> Option<Credential> {
+    let text = fs::read_to_string(path).ok()?;
+    let root: Value = serde_json::from_str(&text).ok()?;
+    let entry = root.get("openrouter")?.as_object()?;
+    if entry
+        .get("type")
+        .and_then(Value::as_str)
+        .is_some_and(|kind| kind != "api")
+    {
+        return None;
+    }
+    let key = entry.get("key")?.as_str()?.trim();
+    if key.is_empty() {
+        return None;
+    }
+    Some(Credential {
+        key: key.into(),
+        source: "OpenCode · OpenRouter".into(),
+    })
 }
 
 fn t3_settings_paths() -> Vec<PathBuf> {
@@ -410,6 +461,23 @@ mod tests {
         assert!(is_openrouter_url("https://openrouter.ai/api"));
         assert!(is_openrouter_url("HTTPS://OPENROUTER.AI/API/V1"));
         assert!(!is_openrouter_url("https://api.anthropic.com"));
+    }
+
+    #[test]
+    fn parses_opencode_openrouter_auth() {
+        let dir = std::env::temp_dir().join(format!("codenotch-openrouter-{}", std::process::id()));
+        let _ = fs::create_dir_all(&dir);
+        let path = dir.join("auth.json");
+        fs::write(
+            &path,
+            r#"{"openrouter":{"type":"api","key":"sk-or-v1-test"}}"#,
+        )
+        .unwrap();
+        let credential = credential_from_opencode_auth(&path).unwrap();
+        assert_eq!(credential.key, "sk-or-v1-test");
+        assert_eq!(credential.source, "OpenCode · OpenRouter");
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_dir(dir);
     }
 
     #[test]
