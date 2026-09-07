@@ -1,5 +1,5 @@
 use crate::model::{LimitWindow, ProviderAccount, ProviderSnapshot};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -155,7 +155,8 @@ fn parse_billing(root: &Value, credential: &GrokCredential) -> Result<ProviderSn
                 .and_then(|period| period.get("end"))
                 .and_then(Value::as_str)
                 .filter(|value| !value.is_empty())
-                .map(ToOwned::to_owned);
+                .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+                .map(|date| date.with_timezone(&Utc));
             windows.push(LimitWindow {
                 id: id.into(),
                 label: label.into(),
@@ -177,7 +178,8 @@ fn parse_billing(root: &Value, credential: &GrokCredential) -> Result<ProviderSn
                     .get("billingPeriodEnd")
                     .and_then(Value::as_str)
                     .filter(|value| !value.is_empty())
-                    .map(ToOwned::to_owned);
+                    .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+                    .map(|date| date.with_timezone(&Utc));
                 windows.push(LimitWindow {
                     id: "monthly".into(),
                     label: "Monthly credits".into(),
@@ -437,7 +439,6 @@ fn t3_grok_homes(settings_path: &Path) -> Vec<(PathBuf, String, Option<String>)>
     }
     result
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -469,7 +470,10 @@ mod tests {
         assert_eq!(snapshot.headline_id.as_deref(), Some("weekly"));
         assert_eq!(snapshot.windows.len(), 1);
         assert!((snapshot.windows[0].used_fraction - 0.375).abs() < 0.0001);
-        assert_eq!(snapshot.windows[0].resets_at.as_deref(), Some("2026-09-08T00:00:00Z"));
+        assert_eq!(
+            snapshot.windows[0].resets_at.as_ref(),
+            Some(&DateTime::parse_from_rfc3339("2026-09-08T00:00:00Z").unwrap().with_timezone(&Utc))
+        );
         assert!(snapshot.message.as_deref().is_some_and(|value| value.contains("$12.00")));
     }
 
