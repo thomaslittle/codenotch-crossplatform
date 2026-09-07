@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { formatPercent, formatReset, remainingFraction } from "../lib/usage";
 import { runningInTauri } from "../lib/backend";
 import { loadSettings } from "../lib/settings";
-import { bandForRemaining, resolveSurface, themeVars, useSystemLight } from "../lib/theme";
+import { resolveSurface, themeVars, useSystemLight } from "../lib/theme";
 import { ProviderLogo } from "../components/ProviderLogo";
 import type { Edge, ProviderSnapshot } from "../types";
 
@@ -40,7 +40,7 @@ export function TooltipView() {
   return (
     <main
       className={`tooltip-stage tooltip-${edge}`}
-      style={themeVars(surface)}
+      style={{ ...themeVars(surface), "--accent": settings.accent } as React.CSSProperties}
       onMouseEnter={() => runningInTauri() && void emitTo("notch", "tooltip:hover")}
       onMouseLeave={() => runningInTauri() && void emitTo("notch", "tooltip:leave")}
     >
@@ -76,13 +76,13 @@ export function TooltipView() {
                 <span>{window.label}</span>
                 <span className="reset-copy">{formatReset(window.resetsAt)}</span>
               </div>
-              <div className="limit-track" aria-hidden="true">
+              <div className="limit-track" aria-hidden="true" style={{ background: "var(--bar-track)" }}>
                 <motion.span
                   className="limit-fill"
                   initial={{ width: 0 }}
                   animate={{ width: `${remaining * 100}%` }}
                   transition={{ type: "spring", stiffness: 90, damping: 20, delay: 0.08 + windowIndex * 0.05 }}
-                  style={{ background: bandForRemaining(surface, remaining) }}
+                  style={{ background: settings.accent }}
                 />
               </div>
               <span className="used-copy">{formatPercent(remaining)} Remaining</span>
