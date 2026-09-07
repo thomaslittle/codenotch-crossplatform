@@ -8,6 +8,20 @@
    - neutral track = quota already consumed / unavailable portion
    Do not add traffic-light or provider-specific colors in this stylesheet. */
 
+/* Circular gauges use a bottom-origin meter convention. Classic starts at
+   6 o'clock and grows toward the right; Halo activates its first segment at
+   the same point/direction. This makes "remaining" read like a filling meter
+   instead of a top-origin countdown dial. */
+.provider-ring.gauge-classic .ring-track,
+.provider-ring.gauge-classic .ring-value {
+  transform-origin: 22px 22px;
+  transform: scaleX(-1) rotate(90deg);
+}
+.provider-ring.gauge-halo > svg.ring-svg:first-child {
+  transform-origin: 22px 22px;
+  transform: scaleX(-1) rotate(180deg);
+}
+
 /* Classic + Halo are already complete visual objects. On Dock they should
    float like dock icons, not sit inside another rounded card. */
 html[data-shell="dock"] .provider-ring.gauge-classic,
@@ -41,25 +55,26 @@ html[data-shell="dock"] .provider-ring.gauge-slim {
   opacity: .82;
 }
 
-/* Reset alerts are an event, not a health indicator. Turn the old green dot
-   into an amber refresh badge so it cannot be mistaken for quota remaining. */
+/* Reset alerts are events, not health indicators. A literal NEW pill is much
+   clearer than a symbolic dot/arrow and cannot be confused with quota color. */
 .provider-cell[aria-label*="quota refreshed"] > span[aria-hidden="true"] {
-  width: 14px !important;
-  height: 14px !important;
+  width: 22px !important;
+  height: 12px !important;
   top: -5px !important;
-  right: -4px !important;
+  right: -8px !important;
+  border-radius: 999px !important;
   display: grid !important;
   place-items: center !important;
   background: #ffb020 !important;
   color: #1b1200 !important;
-  box-shadow: 0 0 9px rgba(255, 176, 32, .82) !important;
-  font-size: 10px !important;
+  box-shadow: 0 0 9px rgba(255, 176, 32, .72) !important;
+  font-size: 7px !important;
   line-height: 1 !important;
   font-weight: 900 !important;
+  letter-spacing: .25px !important;
 }
 .provider-cell[aria-label*="quota refreshed"] > span[aria-hidden="true"]::after {
-  content: "↻";
-  transform: translateY(-.5px);
+  content: "NEW";
 }
 
 /* Hidden auto-hide notification: same amber event language. The inline
@@ -73,6 +88,20 @@ html[data-shell="dock"] .provider-ring.gauge-slim {
   box-shadow: 0 7px 18px rgba(0,0,0,.38), 0 0 14px rgba(255,176,32,.62) !important;
 }
 .notch-shell > span[aria-hidden="true"][style*="z-index: 8"] > span {
+  width: 18px !important;
+  height: 10px !important;
+  right: -3px !important;
+  top: -3px !important;
+  border-radius: 999px !important;
+  display: grid !important;
+  place-items: center !important;
   background: #ffb020 !important;
+  color: #1b1200 !important;
   box-shadow: 0 0 7px rgba(255,176,32,.85) !important;
+  font-size: 6px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+.notch-shell > span[aria-hidden="true"][style*="z-index: 8"] > span::after {
+  content: "NEW";
 }
