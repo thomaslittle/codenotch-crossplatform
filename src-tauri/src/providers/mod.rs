@@ -5,6 +5,7 @@ mod cursor;
 mod grok;
 mod opencode;
 mod openrouter;
+mod provider_refine;
 mod zcode;
 
 use crate::model::{ActivitySummary, ProviderSnapshot};
@@ -62,9 +63,9 @@ impl ProviderStore {
             codex::snapshot(),
             antigravity::snapshot(),
             opencode::snapshot(),
-            openrouter::snapshot(),
+            provider_refine::openrouter_snapshot(),
             grok::snapshot(),
-            zcode::snapshot(),
+            provider_refine::zcode_snapshot(),
         );
         vec![claude, cursor, codex, antigravity, opencode, openrouter, grok, zcode]
             .into_iter()
