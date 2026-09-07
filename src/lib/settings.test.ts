@@ -40,9 +40,14 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-describe("auto-hide settings", () => {
+describe("settings", () => {
   it("uses defaults when storage is empty", () => {
     expect(loadSettings()).toMatchObject({
+      theme: DEFAULT_SETTINGS.theme,
+      shellStyle: DEFAULT_SETTINGS.shellStyle,
+      gaugeStyle: DEFAULT_SETTINGS.gaugeStyle,
+      accent: DEFAULT_SETTINGS.accent,
+      shellBackgroundOpacity: DEFAULT_SETTINGS.shellBackgroundOpacity,
       autoHide: DEFAULT_SETTINGS.autoHide,
       autoHideDelaySec: DEFAULT_SETTINGS.autoHideDelaySec,
     });
@@ -61,9 +66,75 @@ describe("auto-hide settings", () => {
     expect(loadSettings()).toMatchObject({
       edge: "left",
       scale: 0.9,
+      theme: "custom",
+      shellStyle: "tab",
+      gaugeStyle: "classic",
+      accent: DEFAULT_SETTINGS.accent,
+      shellBackgroundOpacity: DEFAULT_SETTINGS.shellBackgroundOpacity,
       autoHide: false,
       autoHideDelaySec: 5,
     });
+  });
+
+  it("persists a valid accent and rejects malformed values", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ accent: "#ff66cc" }));
+    expect(loadSettings().accent).toBe("#ff66cc");
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ accent: "hotpink" }));
+    expect(loadSettings().accent).toBe(DEFAULT_SETTINGS.accent);
+  });
+
+  it("clamps shell background opacity and fills its legacy default", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellBackgroundOpacity: -1 }));
+    expect(loadSettings().shellBackgroundOpacity).toBe(0);
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellBackgroundOpacity: 2 }));
+    expect(loadSettings().shellBackgroundOpacity).toBe(1);
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellBackgroundOpacity: 0.46 }));
+    expect(loadSettings().shellBackgroundOpacity).toBe(0.46);
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ edge: "top" }));
+    expect(loadSettings().shellBackgroundOpacity).toBe(DEFAULT_SETTINGS.shellBackgroundOpacity);
+  });
+
+  it("restores legacy named theme surfaces", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme: "abyss", surface: "#ffffff" }));
+    expect(loadSettings()).toMatchObject({
+      theme: "abyss",
+      surface: "#0b1526",
+    });
+  });
+
+  it("falls back from unknown theme ids", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme: "unknown" }));
+    expect(loadSettings().theme).toBe("custom");
+  });
+
+  it("persists every supported shell style and rejects unknown ones", () => {
+    const shellStyles = ["tab", "bubble", "sharp", "trapezoid", "pill", "dock", "dock3d", "ghost"] as const;
+    for (const shellStyle of shellStyles) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellStyle }));
+      expect(loadSettings().shellStyle).toBe(shellStyle);
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellStyle: "glass" }));
+    expect(loadSettings().shellStyle).toBe("tab");
+  });
+
+  it("migrates the retired rail shell to glass dock", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellStyle: "rail" }));
+    expect(loadSettings().shellStyle).toBe("dock");
+  });
+
+  it("persists every supported gauge style and rejects unknown ones", () => {
+    for (const gaugeStyle of ["classic", "slim", "halo", "stacked", "columns", "micro"] as const) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ gaugeStyle }));
+      expect(loadSettings().gaugeStyle).toBe(gaugeStyle);
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ gaugeStyle: "neon" }));
+    expect(loadSettings().gaugeStyle).toBe("classic");
   });
 
   it("does not coerce non-boolean autoHide values", () => {

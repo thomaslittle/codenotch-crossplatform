@@ -1,0 +1,363 @@
+/* Shell/body themes. Loaded after styles.css so each silhouette can override
+   the original moulded tab without disturbing gauge/layout styling. */
+
+.shell-picker { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* Stale means "showing the last good reading", not disabled. Keep it readable
+   and use a small amber status pip instead of fading the entire provider out. */
+.provider-ring.is-stale { opacity: .82; }
+.provider-ring.is-stale::after {
+  content: "";
+  position: absolute;
+  z-index: 6;
+  top: 1px;
+  right: 1px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffad33;
+  box-shadow: 0 0 5px rgba(255, 173, 51, .8);
+  pointer-events: none;
+}
+
+/* All non-tab shells replace the moulded curl pseudo elements. */
+html[data-shell="bubble"] .notch-shell::before,
+html[data-shell="bubble"] .notch-shell::after,
+html[data-shell="sharp"] .notch-shell::after,
+html[data-shell="trapezoid"] .notch-shell::after,
+html[data-shell="pill"] .notch-shell::after,
+html[data-shell="rail"] .notch-shell::after,
+html[data-shell="dock"] .notch-shell::after,
+html[data-shell="ghost"] .notch-shell::before,
+html[data-shell="ghost"] .notch-shell::after {
+  display: none;
+  background-image: none;
+}
+
+/* Minimal/floating shells still expose a tiny edge handle. Without this,
+   auto-hide could retract every visible pixel of the shell. */
+html[data-shell="bubble"] .edge-right::after,
+html[data-shell="dock"] .edge-right::after,
+html[data-shell="ghost"] .edge-right::after {
+  display: block;
+  inset: var(--curl) 0 var(--curl) auto;
+  width: 5px;
+  background: var(--black);
+  border-radius: 6px 0 0 6px;
+  opacity: .6;
+}
+html[data-shell="bubble"] .edge-left::after,
+html[data-shell="dock"] .edge-left::after,
+html[data-shell="ghost"] .edge-left::after {
+  display: block;
+  inset: var(--curl) auto var(--curl) 0;
+  width: 5px;
+  background: var(--black);
+  border-radius: 0 6px 6px 0;
+  opacity: .6;
+}
+html[data-shell="bubble"] .edge-top::after,
+html[data-shell="dock"] .edge-top::after,
+html[data-shell="ghost"] .edge-top::after {
+  display: block;
+  inset: 0 var(--curl) auto var(--curl);
+  height: 5px;
+  background: var(--black);
+  border-radius: 0 0 6px 6px;
+  opacity: .6;
+}
+html[data-shell="bubble"] .edge-bottom::after,
+html[data-shell="dock"] .edge-bottom::after,
+html[data-shell="ghost"] .edge-bottom::after {
+  display: block;
+  inset: auto var(--curl) 0 var(--curl);
+  height: 5px;
+  background: var(--black);
+  border-radius: 6px 6px 0 0;
+  opacity: .6;
+}
+html[data-shell="dock"] .notch-shell::after { opacity: .34; }
+html[data-shell="ghost"] .notch-shell::after { opacity: .28; }
+
+/* BUBBLE — no shared body. Every provider is its own little tile. */
+html[data-shell="bubble"] .provider-cell {
+  background: var(--black);
+  border: 1px solid var(--row-border);
+  border-radius: 24px;
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .22);
+}
+html[data-shell="bubble"] .provider-cell:not(.is-compact) {
+  width: 54px;
+  min-width: 54px;
+  padding: 5px 3px 7px;
+}
+html[data-shell="bubble"] .provider-cell.is-compact {
+  border-radius: 16px;
+  padding: 0;
+}
+html[data-shell="bubble"] .settings-orb {
+  background: var(--black);
+  border: 1px solid var(--row-border);
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .22);
+}
+html[data-shell="bubble"] .settings-orb .orb-cog { opacity: .62; }
+
+/* SHARP — full, hard-edged slab. */
+html[data-shell="sharp"] .edge-right::before,
+html[data-shell="sharp"] .edge-left::before {
+  display: block;
+  top: var(--curl);
+  bottom: var(--curl);
+  left: 0;
+  right: 0;
+  background: var(--black);
+  border-radius: 2px;
+}
+html[data-shell="sharp"] .edge-top::before,
+html[data-shell="sharp"] .edge-bottom::before {
+  display: block;
+  left: var(--curl);
+  right: var(--curl);
+  top: 0;
+  bottom: 0;
+  background: var(--black);
+  border-radius: 2px;
+}
+html[data-shell="sharp"] .provider-cell:hover,
+html[data-shell="sharp"] .provider-cell:focus-visible {
+  background: var(--row-bg);
+  border-radius: 3px;
+}
+
+/* TRAPEZOID — a clean four-sided wedge. The screen-facing edge stays full
+   length while the desktop-facing edge is slightly shorter, creating one
+   broad, deliberate taper instead of the old pinched badge/hourglass shape. */
+html[data-shell="trapezoid"] .edge-right::before {
+  display: block;
+  inset: var(--curl) 0;
+  background: var(--black);
+  clip-path: polygon(0 7%, 100% 0, 100% 100%, 0 93%);
+  filter: drop-shadow(-3px 5px 10px rgba(0, 0, 0, .18));
+  border-radius: 0;
+}
+html[data-shell="trapezoid"] .edge-left::before {
+  display: block;
+  inset: var(--curl) 0;
+  background: var(--black);
+  clip-path: polygon(0 0, 100% 7%, 100% 93%, 0 100%);
+  filter: drop-shadow(3px 5px 10px rgba(0, 0, 0, .18));
+  border-radius: 0;
+}
+html[data-shell="trapezoid"] .edge-top::before {
+  display: block;
+  inset: 0 var(--curl);
+  background: var(--black);
+  clip-path: polygon(0 0, 100% 0, 93% 100%, 7% 100%);
+  filter: drop-shadow(0 3px 10px rgba(0, 0, 0, .18));
+  border-radius: 0;
+}
+html[data-shell="trapezoid"] .edge-bottom::before {
+  display: block;
+  inset: 0 var(--curl);
+  background: var(--black);
+  clip-path: polygon(7% 0, 93% 0, 100% 100%, 0 100%);
+  filter: drop-shadow(0 -3px 10px rgba(0, 0, 0, .18));
+  border-radius: 0;
+}
+html[data-shell="trapezoid"] .provider-cell:hover,
+html[data-shell="trapezoid"] .provider-cell:focus-visible {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 8px;
+}
+
+/* PILL — soft continuous capsule without the tab curls. */
+html[data-shell="pill"] .edge-right::before {
+  display: block;
+  inset: var(--curl) 0;
+  background: var(--black);
+  border-radius: 34px 0 0 34px;
+}
+html[data-shell="pill"] .edge-left::before {
+  display: block;
+  inset: var(--curl) 0;
+  background: var(--black);
+  border-radius: 0 34px 34px 0;
+}
+html[data-shell="pill"] .edge-top::before {
+  display: block;
+  inset: 0 var(--curl);
+  background: var(--black);
+  border-radius: 0 0 34px 34px;
+}
+html[data-shell="pill"] .edge-bottom::before {
+  display: block;
+  inset: 0 var(--curl);
+  background: var(--black);
+  border-radius: 34px 34px 0 0;
+}
+
+/* RAIL — a genuinely thin guide line, with gauge nodes sitting on it. */
+html[data-shell="rail"] .edge-right::before {
+  display: block;
+  top: var(--curl);
+  bottom: var(--curl);
+  right: 33px;
+  left: auto;
+  width: 4px;
+  background: color-mix(in srgb, var(--text) 24%, transparent);
+  border-radius: 999px;
+}
+html[data-shell="rail"] .edge-left::before {
+  display: block;
+  top: var(--curl);
+  bottom: var(--curl);
+  left: 33px;
+  right: auto;
+  width: 4px;
+  background: color-mix(in srgb, var(--text) 24%, transparent);
+  border-radius: 999px;
+}
+html[data-shell="rail"] .edge-top::before {
+  display: block;
+  top: 27px;
+  bottom: auto;
+  left: var(--curl);
+  right: var(--curl);
+  height: 4px;
+  background: color-mix(in srgb, var(--text) 24%, transparent);
+  border-radius: 999px;
+}
+html[data-shell="rail"] .edge-bottom::before {
+  display: block;
+  top: auto;
+  bottom: 27px;
+  left: var(--curl);
+  right: var(--curl);
+  height: 4px;
+  background: color-mix(in srgb, var(--text) 24%, transparent);
+  border-radius: 999px;
+}
+html[data-shell="rail"] .provider-ring {
+  background: color-mix(in srgb, var(--black) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
+  border-radius: 15px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .2);
+  backdrop-filter: blur(9px) saturate(1.15);
+}
+html[data-shell="rail"] .provider-percent {
+  font-size: 12px;
+  opacity: .9;
+}
+html[data-shell="rail"] .settings-orb {
+  background: color-mix(in srgb, var(--black) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
+  backdrop-filter: blur(9px) saturate(1.15);
+}
+html[data-shell="rail"] .settings-orb .orb-cog { opacity: .68; }
+
+/* DOCK — floating translucent desktop dock. The native window still touches
+   the screen edge for reliable positioning/auto-hide, but the visible body is
+   inset so it reads as a detached glass shelf. */
+html[data-shell="dock"] .edge-right::before,
+html[data-shell="dock"] .edge-left::before {
+  display: block;
+  inset: var(--curl) 7px;
+  background: color-mix(in srgb, var(--black) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 25px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .28), inset 0 1px 0 color-mix(in srgb, var(--text) 11%, transparent);
+  backdrop-filter: blur(18px) saturate(1.35);
+}
+html[data-shell="dock"] .edge-top::before,
+html[data-shell="dock"] .edge-bottom::before {
+  display: block;
+  inset: 7px var(--curl);
+  background: color-mix(in srgb, var(--black) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 25px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .28), inset 0 1px 0 color-mix(in srgb, var(--text) 11%, transparent);
+  backdrop-filter: blur(18px) saturate(1.35);
+}
+html[data-shell="dock"] .provider-ring {
+  background: color-mix(in srgb, var(--black) 38%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: 15px;
+  box-shadow: 0 5px 13px rgba(0, 0, 0, .18);
+  backdrop-filter: blur(8px);
+}
+html[data-shell="dock"] .provider-ring,
+html[data-shell="dock"] .provider-cell {
+  transition: transform 190ms cubic-bezier(.2,.85,.25,1.2), opacity 180ms ease;
+}
+html[data-shell="dock"] .edge-top .provider-cell:hover .provider-ring,
+html[data-shell="dock"] .edge-top .provider-cell:focus-visible .provider-ring {
+  transform: translateY(5px) scale(1.12);
+}
+html[data-shell="dock"] .edge-bottom .provider-cell:hover .provider-ring,
+html[data-shell="dock"] .edge-bottom .provider-cell:focus-visible .provider-ring {
+  transform: translateY(-5px) scale(1.12);
+}
+html[data-shell="dock"] .edge-right .provider-cell:hover .provider-ring,
+html[data-shell="dock"] .edge-right .provider-cell:focus-visible .provider-ring {
+  transform: translateX(-5px) scale(1.12);
+}
+html[data-shell="dock"] .edge-left .provider-cell:hover .provider-ring,
+html[data-shell="dock"] .edge-left .provider-cell:focus-visible .provider-ring {
+  transform: translateX(5px) scale(1.12);
+}
+html[data-shell="dock"] .provider-cell:hover + .provider-cell .provider-ring,
+html[data-shell="dock"] .provider-cell:has(+ .provider-cell:hover) .provider-ring {
+  transform: scale(1.045);
+}
+html[data-shell="dock"] .provider-percent {
+  font-size: 12px;
+  opacity: .9;
+}
+html[data-shell="dock"] .settings-orb {
+  width: 39px;
+  height: 39px;
+  background: color-mix(in srgb, var(--black) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  box-shadow: 0 5px 13px rgba(0, 0, 0, .18);
+  backdrop-filter: blur(10px);
+}
+html[data-shell="dock"] .settings-orb .orb-cog {
+  width: 16px;
+  height: 16px;
+  opacity: .7;
+  transform: none;
+}
+
+/* GHOST — zero shared chrome. Only gauges/icons remain. */
+html[data-shell="ghost"] .provider-ring {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .62));
+}
+html[data-shell="ghost"] .provider-percent {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .9), 0 0 6px rgba(0, 0, 0, .55);
+}
+html[data-shell="ghost"] .settings-orb {
+  width: 34px;
+  height: 34px;
+  background: color-mix(in srgb, var(--black) 68%, transparent);
+  border: 1px solid var(--row-border);
+  backdrop-filter: blur(6px);
+}
+html[data-shell="ghost"] .settings-orb .orb-cog {
+  width: 15px;
+  height: 15px;
+  opacity: .62;
+  transform: none;
+}
+
+/* Keep floating/minimal gauges tight when paired with Stacked / Columns / Micro. */
+html[data-shell="bubble"] .provider-cell.is-compact,
+html[data-shell="rail"] .provider-cell.is-compact,
+html[data-shell="dock"] .provider-cell.is-compact,
+html[data-shell="ghost"] .provider-cell.is-compact {
+  width: 44px;
+  min-width: 44px;
+}
+
+@media (max-width: 520px) {
+  .shell-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

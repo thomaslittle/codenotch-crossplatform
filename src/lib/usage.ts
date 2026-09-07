@@ -27,6 +27,20 @@ export function usageBand(value: number): UsageBand {
   return "ample";
 }
 
+/** Convert provider-native used quota into the user-facing amount left. */
+export function remainingFraction(usedFraction: number): number {
+  return clamp01(1 - clamp01(usedFraction));
+}
+
+/** Availability semantics: full/healthy is green; depletion moves yellow -> red. */
+export function availabilityBand(value: number): UsageBand {
+  const remaining = clamp01(value);
+  if (remaining <= 0) return "exhausted";
+  if (remaining <= 0.2) return "critical";
+  if (remaining <= 0.5) return "watch";
+  return "ample";
+}
+
 export function bandColor(value: number): string {
   switch (usageBand(value)) {
     case "ample":

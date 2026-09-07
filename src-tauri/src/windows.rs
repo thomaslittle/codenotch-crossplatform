@@ -6,19 +6,51 @@ use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Position,
 #[serde(rename_all = "lowercase")]
 pub enum Edge { Right, Left, Top, Bottom }
 
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ShellStyle {
+    Tab,
+    Bubble,
+    Sharp,
+    Trapezoid,
+    Pill,
+    Rail,
+    Dock,
+    #[serde(rename = "dock3d")]
+    Dock3d,
+    Ghost,
+}
+
 const SIDE_DEPTH: f64 = 70.0;
 const HORIZONTAL_DEPTH: f64 = 84.0;
 pub const SLIVER: f64 = 6.0;
 const CURL: f64 = 39.0;
-const RING: f64 = 44.0;
 const CELL: f64 = 70.0;
 const HORIZONTAL_CELL: f64 = 48.0;
 const GAP: f64 = 31.0;
 const START_PAD: f64 = 26.0;
 const END_PAD: f64 = 19.0;
+const COMPACT_CELL: f64 = 44.0;
+const COMPACT_HORIZONTAL_CELL: f64 = 44.0;
+const COMPACT_GAP: f64 = 12.0;
+const COMPACT_START_PAD: f64 = 16.0;
+const COMPACT_END_PAD: f64 = 14.0;
 const TOOLTIP_W: f64 = 270.0;
 const TOOLTIP_H: f64 = 280.0;
 const AUTODETECT_POLL_MS: u64 = 120;
+
+#[derive(Debug, Clone, Copy)]
+struct LayoutMetrics {
+    outer: f64,
+    start: f64,
+    end: f64,
+    side_cell: f64,
+    horizontal_cell: f64,
+    side_gap: f64,
+    horizontal_gap: f64,
+    side_depth: f64,
+    horizontal_depth: f64,
+}
 
 fn monitor_rect(monitor: &tauri::Monitor) -> (f64, f64, f64, f64) {
     let scale = monitor.scale_factor();
@@ -37,8 +69,6 @@ fn primary_rect(app: &AppHandle) -> Result<(f64, f64, f64, f64), String> {
     Ok(monitor_rect(&monitor))
 }
 
-/// Resolve `"primary"` or a monitor index (see `list_monitors`) to logical
-/// geometry, falling back to the primary monitor.
 fn target_rect(app: &AppHandle, monitor: &str) -> Result<(f64, f64, f64, f64), String> {
     if monitor != "primary" {
         if let Ok(index) = monitor.parse::<usize>() {
@@ -96,16 +126,115 @@ fn clamp_scale(scale: f64) -> f64 {
     scale.clamp(0.5, 2.0)
 }
 
-fn side_length(count: usize, scale: f64) -> f64 {
-    let count = count.max(1) as f64;
-    let (curl, start, end, cell, gap) = (CURL * scale, START_PAD * scale, END_PAD * scale, CELL * scale, GAP * scale);
-    curl * 2.0 + start + end + count * cell + (count - 1.0) * gap
+/// Native window geometry has to follow the visible shell, not the original
+/// tab's spacing. Dock shells reserve a real Settings slot and intentionally
+/// pack provider icons closer together, while legacy/tab-shaped shells keep
+/// the original measurements exactly.
+fn layout_metrics(compact: bool, shell: ShellStyle) -> LayoutMetrics {
+    match shell {
+        ShellStyle::Dock | ShellStyle::Rail => {
+            if compact {
+                LayoutMetrics {
+                    outer: 0.0,
+                    start: 14.0,
+                    end: 54.0,
+                    side_cell: 44.0,
+                    horizontal_cell: 44.0,
+                    side_gap: 8.0,
+                    horizontal_gap: 8.0,
+                    side_depth: 70.0,
+                    horizontal_depth: 80.0,
+                }
+            } else {
+                LayoutMetrics {
+                    outer: 0.0,
+                    start: 14.0,
+                    end: 58.0,
+                    side_cell: 70.0,
+                    horizontal_cell: 52.0,
+                    side_gap: 8.0,
+                    horizontal_gap: 10.0,
+                    side_depth: 74.0,
+                    horizontal_depth: 86.0,
+                }
+            }
+        }
+        ShellStyle::Dock3d => {
+            if compact {
+                LayoutMetrics {
+                    outer: 0.0,
+                    start: 16.0,
+                    end: 58.0,
+                    side_cell: 44.0,
+                    horizontal_cell: 44.0,
+                    side_gap: 7.0,
+                    horizontal_gap: 7.0,
+                    side_depth: 80.0,
+                    horizontal_depth: 90.0,
+                }
+            } else {
+                LayoutMetrics {
+                    outer: 0.0,
+                    start: 16.0,
+                    end: 62.0,
+                    side_cell: 70.0,
+                    horizontal_cell: 52.0,
+                    side_gap: 7.0,
+                    horizontal_gap: 7.0,
+                    side_depth: 84.0,
+                    horizontal_depth: 96.0,
+                }
+            }
+        }
+        _ => {
+            if compact {
+                LayoutMetrics {
+                    outer: CURL,
+                    start: COMPACT_START_PAD,
+                    end: COMPACT_END_PAD,
+                    side_cell: COMPACT_CELL,
+                    horizontal_cell: COMPACT_HORIZONTAL_CELL,
+                    side_gap: COMPACT_GAP,
+                    horizontal_gap: COMPACT_GAP,
+                    side_depth: SIDE_DEPTH,
+                    horizontal_depth: HORIZONTAL_DEPTH,
+                }
+            } else {
+                LayoutMetrics {
+                    outer: CURL,
+                    start: START_PAD,
+                    end: END_PAD,
+                    side_cell: CELL,
+                    horizontal_cell: HORIZONTAL_CELL,
+                    side_gap: GAP,
+                    horizontal_gap: GAP,
+                    side_depth: SIDE_DEPTH,
+                    horizontal_depth: HORIZONTAL_DEPTH,
+                }
+            }
+        }
+    }
 }
 
-fn horizontal_length(count: usize, scale: f64) -> f64 {
+fn side_length(count: usize, scale: f64, compact: bool, shell: ShellStyle) -> f64 {
     let count = count.max(1) as f64;
-    let (curl, start, end, cell, gap) = (CURL * scale, START_PAD * scale, END_PAD * scale, HORIZONTAL_CELL * scale, GAP * scale);
-    curl * 2.0 + start + end + count * cell + (count - 1.0) * gap
+    let m = layout_metrics(compact, shell);
+    (m.outer * 2.0 + m.start + m.end + count * m.side_cell + (count - 1.0) * m.side_gap) * scale
+}
+
+fn horizontal_length(count: usize, scale: f64, compact: bool, shell: ShellStyle) -> f64 {
+    let count = count.max(1) as f64;
+    let m = layout_metrics(compact, shell);
+    (m.outer * 2.0 + m.start + m.end + count * m.horizontal_cell + (count - 1.0) * m.horizontal_gap) * scale
+}
+
+fn provider_center(index: usize, edge: Edge, scale: f64, compact: bool, shell: ShellStyle) -> f64 {
+    let m = layout_metrics(compact, shell);
+    let (cell, gap) = match edge {
+        Edge::Right | Edge::Left => (m.side_cell, m.side_gap),
+        Edge::Top | Edge::Bottom => (m.horizontal_cell, m.horizontal_gap),
+    };
+    (m.outer + m.start + index as f64 * (cell + gap) + cell / 2.0) * scale
 }
 
 pub fn place_notch(
@@ -116,47 +245,51 @@ pub fn place_notch(
     monitor: &str,
     offset_x: f64,
     offset_y: f64,
+    compact: bool,
+    shell: ShellStyle,
 ) -> Result<(), String> {
     let window = app.get_webview_window("notch").ok_or("Notch window missing")?;
     let s = clamp_scale(scale);
     let (mx, my, mw, mh) = target_rect(app, monitor)?;
-    let side_depth = SIDE_DEPTH * s;
-    let horizontal_depth = HORIZONTAL_DEPTH * s;
+    let metrics = layout_metrics(compact, shell);
+    let side_depth = metrics.side_depth * s;
+    let horizontal_depth = metrics.horizontal_depth * s;
     let (w, h, mut x, mut y) = match edge {
         Edge::Right => {
-            let h = side_length(count, s).min(mh - 32.0);
+            let h = side_length(count, s, compact, shell).min(mh - 32.0);
             (side_depth, h, mx + mw - side_depth, my + (mh - h) / 2.0)
         }
         Edge::Left => {
-            let h = side_length(count, s).min(mh - 32.0);
+            let h = side_length(count, s, compact, shell).min(mh - 32.0);
             (side_depth, h, mx, my + (mh - h) / 2.0)
         }
         Edge::Top => {
-            let w = horizontal_length(count, s).min(mw - 32.0);
+            let w = horizontal_length(count, s, compact, shell).min(mw - 32.0);
             (w, horizontal_depth, mx + (mw - w) / 2.0, my)
         }
         Edge::Bottom => {
-            let w = horizontal_length(count, s).min(mw - 32.0);
+            let w = horizontal_length(count, s, compact, shell).min(mw - 32.0);
             (w, horizontal_depth, mx + (mw - w) / 2.0, my + mh - horizontal_depth)
         }
     };
-    // User nudge, then clamp so the window always keeps a grabbable strip
-    // on-screen. The margin shrinks for narrow windows so an edge-docked
-    // notch still sits perfectly flush at any scale.
     let margin_x = 80.0_f64.min(w);
     let margin_y = 80.0_f64.min(h);
     x = (x + offset_x.clamp(-2000.0, 2000.0)).clamp(mx - w + margin_x, mx + mw - margin_x);
     y = (y + offset_y.clamp(-2000.0, 2000.0)).clamp(my - h + margin_y, my + mh - margin_y);
-    // Snap, don't glide: per-frame IPC window moves cost a full repaint each
-    // and can never hold 60fps. All motion stays in compositor-friendly
-    // transform/opacity inside the webview (see the React entrance springs).
     window.set_size(Size::Logical(LogicalSize::new(w, h))).map_err(|e| e.to_string())?;
     window.set_position(Position::Logical(LogicalPosition::new(x, y))).map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())?;
     Ok(())
 }
 
-pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64) -> Result<(), String> {
+pub fn place_tooltip(
+    app: &AppHandle,
+    edge: Edge,
+    index: usize,
+    notch_scale: f64,
+    compact: bool,
+    shell: ShellStyle,
+) -> Result<(), String> {
     let notch = app.get_webview_window("notch").ok_or("Notch window missing")?;
     let tooltip = app.get_webview_window("tooltip").ok_or("Tooltip window missing")?;
     let factor = notch.scale_factor().map_err(|e| e.to_string())?;
@@ -168,9 +301,6 @@ pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64
     let nh = s.height as f64 / factor;
     tooltip.set_size(Size::Logical(LogicalSize::new(TOOLTIP_W, TOOLTIP_H))).map_err(|e| e.to_string())?;
     let k = clamp_scale(notch_scale);
-    // Clamp inside the monitor the notch is actually on. Secondary monitors
-    // live at negative offsets, so clamping to 0,0 strands the card on the
-    // primary display.
     let (mx, my, mw, mh) = notch
         .current_monitor()
         .ok()
@@ -182,13 +312,13 @@ pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64
 
     let (x, y) = match edge {
         Edge::Right | Edge::Left => {
-            let center = (CURL + START_PAD + index as f64 * (CELL + GAP) + RING / 2.0) * k;
+            let center = provider_center(index, edge, k, compact, shell);
             let y = (ny + center - TOOLTIP_H / 2.0).clamp(my, (my + mh - TOOLTIP_H).max(my));
             let x = match edge { Edge::Right => nx - TOOLTIP_W + 9.0, _ => nx + nw - 9.0 };
             (x, y)
         }
         Edge::Top | Edge::Bottom => {
-            let center = (CURL + START_PAD + index as f64 * (HORIZONTAL_CELL + GAP) + RING / 2.0) * k;
+            let center = provider_center(index, edge, k, compact, shell);
             let x = (nx + center - TOOLTIP_W / 2.0).clamp(mx, (mx + mw - TOOLTIP_W).max(mx));
             let y = match edge { Edge::Top => ny + nh - 9.0, _ => ny - TOOLTIP_H + 9.0 };
             (x, y)
@@ -201,9 +331,6 @@ pub fn place_tooltip(app: &AppHandle, edge: Edge, index: usize, notch_scale: f64
 
 pub fn open_settings(app: &AppHandle) -> Result<(), String> {
     let window = app.get_webview_window("settings").ok_or("Settings window missing")?;
-    // Enforce size before centering so the window can never open half
-    // off-screen from a stale size. Center twice: set_size applies
-    // asynchronously, so the first center may still see the old size.
     window.center().map_err(|e| e.to_string())?;
     window.set_size(Size::Logical(LogicalSize::new(620.0, 660.0))).map_err(|e| e.to_string())?;
     window.center().map_err(|e| e.to_string())?;
@@ -235,13 +362,6 @@ pub fn place_context_menu(app: &AppHandle, edge: Edge, notch_scale: f64) -> Resu
     Ok(())
 }
 
-/// Is the OS cursor inside the notch or tooltip window right now?
-///
-/// Showing a top-level window can deliver a spurious `mouseleave` to the
-/// notch webview even when the cursor never moved. The frontend asks this
-/// before hiding the tooltip so a phantom leave can't blink it away.
-/// Returns `None` when the position can't be determined (non-Windows or any
-/// OS call fails) so the caller falls back to the plain timeout behavior.
 pub fn cursor_inside_notch_or_tooltip(app: &AppHandle) -> Option<bool> {
     #[cfg(target_os = "windows")]
     {
@@ -250,13 +370,11 @@ pub fn cursor_inside_notch_or_tooltip(app: &AppHandle) -> Option<bool> {
             let window = app.get_webview_window(label)?;
             let position = window.outer_position().ok()?;
             let size = window.outer_size().ok()?;
-            // Skip hidden windows (outer rects are meaningless while hidden).
             if !window.is_visible().unwrap_or(false) {
                 continue;
             }
             let (x, y) = (position.x, position.y);
             let (w, h) = (size.width as i32, size.height as i32);
-            // Small forgiveness margin so edge pixels still count as inside.
             if cx >= x - 2 && cx < x + w + 2 && cy >= y - 2 && cy < y + h + 2 {
                 return Some(true);
             }
@@ -270,7 +388,6 @@ pub fn cursor_inside_notch_or_tooltip(app: &AppHandle) -> Option<bool> {
     }
 }
 
-/// Is the cursor over an auxiliary window that should postpone auto-hide?
 pub fn cursor_inside_overlay(app: &AppHandle) -> Option<bool> {
     let (cx, cy) = cursor_position_global()?;
     for label in ["tooltip", "context-menu", "settings"] {
@@ -294,16 +411,10 @@ pub fn cursor_inside_overlay(app: &AppHandle) -> Option<bool> {
 #[cfg(target_os = "windows")]
 pub fn cursor_position_global() -> Option<(i32, i32)> {
     #[repr(C)]
-    struct Point {
-        x: i32,
-        y: i32,
-    }
+    struct Point { x: i32, y: i32 }
     #[link(name = "user32")]
-    extern "system" {
-        fn GetCursorPos(point: *mut Point) -> i32;
-    }
+    extern "system" { fn GetCursorPos(point: *mut Point) -> i32; }
     let mut point = Point { x: 0, y: 0 };
-    // SAFETY: GetCursorPos only writes the two ints through the pointer.
     let ok = unsafe { GetCursorPos(&mut point) };
     (ok != 0).then_some((point.x, point.y))
 }
@@ -334,9 +445,6 @@ mod x11 {
 
     pub fn display() -> Option<*mut c_void> {
         let cached = DISPLAY.get_or_init(|| {
-            // Keep one Xlib connection for the process lifetime. Closing it while
-            // another poll is reading the pointer would be less safe than this tiny
-            // intentional process-lifetime allocation.
             let display = unsafe { XOpenDisplay(std::ptr::null()) };
             (!display.is_null()).then_some(display as usize)
         });
@@ -353,8 +461,6 @@ mod x11 {
         let mut win_x = 0;
         let mut win_y = 0;
         let mut mask = 0;
-        // SAFETY: all pointers target initialized stack values and `display`
-        // is cached for the full process lifetime.
         let ok = unsafe {
             XQueryPointer(
                 display,
@@ -373,58 +479,28 @@ mod x11 {
 }
 
 #[cfg(target_os = "linux")]
-pub fn cursor_position_global() -> Option<(i32, i32)> {
-    x11::cursor_position()
-}
+pub fn cursor_position_global() -> Option<(i32, i32)> { x11::cursor_position() }
 
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-pub fn cursor_position_global() -> Option<(i32, i32)> {
-    None
-}
+pub fn cursor_position_global() -> Option<(i32, i32)> { None }
 
 pub fn autohide_supported() -> bool {
     #[cfg(target_os = "windows")]
-    {
-        return true;
-    }
+    { return true; }
     #[cfg(target_os = "linux")]
-    {
-        return x11::display().is_some();
-    }
+    { return x11::display().is_some(); }
     #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-    {
-        false
-    }
+    { false }
 }
 
-/// Return the physical-pixel hotspot band along the docked edge.
-pub fn hotspot_rect(
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-    edge: Edge,
-    depth_phys: i32,
-) -> (i32, i32, i32, i32) {
+pub fn hotspot_rect(x: i32, y: i32, w: i32, h: i32, edge: Edge, depth_phys: i32) -> (i32, i32, i32, i32) {
     let w = w.max(0);
     let h = h.max(0);
     match edge {
-        Edge::Right => {
-            let depth = depth_phys.clamp(0, w);
-            (x + w - depth, y, depth, h)
-        }
-        Edge::Left => {
-            let depth = depth_phys.clamp(0, w);
-            (x, y, depth, h)
-        }
-        Edge::Top => {
-            let depth = depth_phys.clamp(0, h);
-            (x, y, w, depth)
-        }
-        Edge::Bottom => {
-            let depth = depth_phys.clamp(0, h);
-            (x, y + h - depth, w, depth)
-        }
+        Edge::Right => { let depth = depth_phys.clamp(0, w); (x + w - depth, y, depth, h) }
+        Edge::Left => { let depth = depth_phys.clamp(0, w); (x, y, depth, h) }
+        Edge::Top => { let depth = depth_phys.clamp(0, h); (x, y, w, depth) }
+        Edge::Bottom => { let depth = depth_phys.clamp(0, h); (x, y + h - depth, w, depth) }
     }
 }
 
@@ -436,9 +512,7 @@ fn point_in_rect(px: i32, py: i32, rect: (i32, i32, i32, i32)) -> bool {
 pub fn set_notch_retracted(app: &AppHandle, retracted: bool, edge: Edge) -> Result<(), String> {
     let state = app.state::<crate::AutohideState>();
     let previous = state.retracted.swap(retracted, Ordering::AcqRel);
-    if previous == retracted {
-        return Ok(());
-    }
+    if previous == retracted { return Ok(()); }
 
     let window = app.get_webview_window("notch").ok_or_else(|| {
         state.retracted.store(previous, Ordering::Release);
@@ -449,9 +523,7 @@ pub fn set_notch_retracted(app: &AppHandle, retracted: bool, edge: Edge) -> Resu
         return Err(error.to_string());
     }
 
-    if retracted {
-        spawn_retract_poll(app.clone(), edge);
-    }
+    if retracted { spawn_retract_poll(app.clone(), edge); }
     Ok(())
 }
 
@@ -459,37 +531,18 @@ fn spawn_retract_poll(app: AppHandle, edge: Edge) {
     tauri::async_runtime::spawn(async move {
         loop {
             tokio::time::sleep(std::time::Duration::from_millis(AUTODETECT_POLL_MS)).await;
-            if !app.state::<crate::AutohideState>().retracted.load(Ordering::Acquire) {
-                break;
-            }
-            let Some(window) = app.get_webview_window("notch") else {
-                break;
-            };
-            if !window.is_visible().unwrap_or(false) {
-                break;
-            }
-            let Some((cx, cy)) = cursor_position_global() else {
-                continue;
-            };
-            let Ok(position) = window.outer_position() else {
-                continue;
-            };
-            let Ok(size) = window.outer_size() else {
-                continue;
-            };
-            let Ok(scale_factor) = window.scale_factor() else {
-                continue;
-            };
+            if !app.state::<crate::AutohideState>().retracted.load(Ordering::Acquire) { break; }
+            let Some(window) = app.get_webview_window("notch") else { break; };
+            if !window.is_visible().unwrap_or(false) { break; }
+            let Some((cx, cy)) = cursor_position_global() else { continue; };
+            let Ok(position) = window.outer_position() else { continue; };
+            let Ok(size) = window.outer_size() else { continue; };
+            let Ok(scale_factor) = window.scale_factor() else { continue; };
             let width = i32::try_from(size.width).unwrap_or(i32::MAX);
             let height = i32::try_from(size.height).unwrap_or(i32::MAX);
             let depth = (SLIVER * 2.0 * scale_factor).round().max(1.0) as i32;
             let hotspot = hotspot_rect(position.x, position.y, width, height, edge, depth);
-            if !point_in_rect(cx, cy, hotspot) {
-                continue;
-            }
-
-            // Re-enable input before telling the webview to spring back in so
-            // the returning shell can receive hover events immediately.
+            if !point_in_rect(cx, cy, hotspot) { continue; }
             if set_notch_retracted(&app, false, edge).is_ok() {
                 let _ = app.emit_to("notch", "notch:peek", ());
                 break;
@@ -498,13 +551,8 @@ fn spawn_retract_poll(app: AppHandle, edge: Edge) {
     });
 }
 
-/// Resize the settings window to fit its content (measured frontend-side),
-/// clamped to the monitor so it can neither scroll nor clip. Never fails
-/// silently: worst case it fits to a sane default cap and logs why.
 pub fn fit_settings(app: &AppHandle, height: f64) -> Result<(), String> {
-    let window = app
-        .get_webview_window("settings")
-        .ok_or("Settings window missing")?;
+    let window = app.get_webview_window("settings").ok_or("Settings window missing")?;
     let mh = window
         .current_monitor()
         .ok()
@@ -518,15 +566,13 @@ pub fn fit_settings(app: &AppHandle, height: f64) -> Result<(), String> {
     let size = window.outer_size().map_err(|e| e.to_string())?;
     let scale = window.scale_factor().map_err(|e| e.to_string())?;
     let w = size.width as f64 / scale;
-    window
-        .set_size(Size::Logical(LogicalSize::new(w, h)))
-        .map_err(|e| e.to_string())?;
+    window.set_size(Size::Logical(LogicalSize::new(w, h))).map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{hotspot_rect, Edge};
+    use super::{horizontal_length, hotspot_rect, layout_metrics, provider_center, side_length, Edge, ShellStyle};
 
     #[test]
     fn hotspot_hugs_right_edge() {
@@ -546,5 +592,26 @@ mod tests {
     #[test]
     fn hotspot_hugs_bottom_edge() {
         assert_eq!(hotspot_rect(10, 20, 100, 50, Edge::Bottom, 12), (10, 58, 100, 12));
+    }
+
+    #[test]
+    fn glass_dock_packs_four_classic_icons() {
+        assert_eq!(horizontal_length(4, 1.0, false, ShellStyle::Dock), 310.0);
+        assert_eq!(provider_center(0, Edge::Bottom, 1.0, false, ShellStyle::Dock), 40.0);
+        assert_eq!(provider_center(3, Edge::Bottom, 1.0, false, ShellStyle::Dock), 226.0);
+    }
+
+    #[test]
+    fn three_d_dock_has_its_own_depth_and_spacing() {
+        let metrics = layout_metrics(false, ShellStyle::Dock3d);
+        assert_eq!(metrics.horizontal_depth, 96.0);
+        assert_eq!(metrics.side_depth, 84.0);
+        assert_eq!(horizontal_length(4, 1.0, false, ShellStyle::Dock3d), 307.0);
+        assert_eq!(side_length(4, 1.0, false, ShellStyle::Dock3d), 379.0);
+    }
+
+    #[test]
+    fn tab_geometry_is_unchanged() {
+        assert_eq!(horizontal_length(4, 1.0, false, ShellStyle::Tab), 408.0);
     }
 }

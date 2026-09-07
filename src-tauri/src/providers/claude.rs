@@ -1,6 +1,6 @@
 use crate::model::{ActivitySummary, LimitWindow, ProviderAccount, ProviderSnapshot};
 use chrono::{DateTime, TimeZone, Utc};
-use reqwest::header::{AUTHORIZATION, HeaderName, HeaderValue};
+use reqwest::header::{AUTHORIZATION, HeaderName, HeaderValue, USER_AGENT};
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -9,6 +9,10 @@ use walkdir::WalkDir;
 
 const ENDPOINT: &str = "https://api.anthropic.com/api/oauth/usage";
 const MANAGE_URL: &str = "https://claude.ai/settings/usage";
+// The OAuth usage endpoint partitions/throttles clients by request identity.
+// Claude Code usage requests carry a `claude-code/<version>` user-agent; use
+// the same compatibility prefix rather than falling into the generic 429 path.
+const CLAUDE_USAGE_USER_AGENT: &str = "claude-code/2.1.34";
 
 pub async fn snapshot() -> ProviderSnapshot {
     let credential_path = credential_path();
@@ -35,6 +39,8 @@ pub async fn snapshot() -> ProviderSnapshot {
     let response = match client.get(ENDPOINT)
         .header(AUTHORIZATION, format!("Bearer {}", credential.access_token))
         .header(beta, HeaderValue::from_static("oauth-2025-04-20"))
+        .header(USER_AGENT, HeaderValue::from_static(CLAUDE_USAGE_USER_AGENT))
+        .header("x-app", HeaderValue::from_static("cli"))
         .send().await
     {
         Ok(response) => response,
@@ -44,7 +50,7 @@ pub async fn snapshot() -> ProviderSnapshot {
         return ProviderSnapshot::unavailable("claude", "Claude", "✳", "needsAuth", "Claude rejected the saved Claude Code login. Run Claude Code and sign in again.", MANAGE_URL, None);
     }
     if response.status().as_u16() == 429 {
-        return ProviderSnapshot::unavailable("claude", "Claude", "✳", "stale", "Claude usage is temporarily rate limited. The last successful reading will stay visible if available.", MANAGE_URL, None);
+        return ProviderSnapshot::unavailable("claude", "Claude", "✳", "stale", "Claude usage is temporarily rate limited. Codenotch is backing off and will keep the last successful reading visible until the next safe retry.", MANAGE_URL, None);
     }
     if !response.status().is_success() {
         let status = response.status();

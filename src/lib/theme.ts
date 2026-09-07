@@ -1,10 +1,26 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import type { ThemeMode } from "../types";
+import type { ThemeMode, ThemePresetId } from "../types";
 import { usageBand } from "./usage";
 
 export const DARK_SURFACE = "#000000";
 export const LIGHT_SURFACE = "#eef0f4";
+
+export interface ThemePreset {
+  id: ThemePresetId;
+  label: string;
+  surface: string;
+  description: string;
+}
+
+export const THEME_PRESETS: readonly ThemePreset[] = [
+  { id: "custom", label: "Custom", surface: DARK_SURFACE, description: "Use the appearance controls below." },
+  { id: "midnight", label: "Midnight", surface: "#000000", description: "Pure black and high contrast." },
+  { id: "graphite", label: "Graphite", surface: "#16181d", description: "Neutral charcoal." },
+  { id: "abyss", label: "Abyss", surface: "#0b1526", description: "Deep navy." },
+  { id: "forest", label: "Forest", surface: "#0c1710", description: "Dark evergreen." },
+  { id: "plum", label: "Plum", surface: "#170f1c", description: "Muted violet-black." },
+] as const;
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -14,6 +30,14 @@ export function isSurface(value: unknown): value is string {
 
 export function isThemeMode(value: unknown): value is ThemeMode {
   return value === "dark" || value === "light" || value === "system";
+}
+
+export function isThemePreset(value: unknown): value is ThemePresetId {
+  return THEME_PRESETS.some((preset) => preset.id === value);
+}
+
+export function getThemePreset(id: ThemePresetId): ThemePreset {
+  return THEME_PRESETS.find((preset) => preset.id === id) ?? THEME_PRESETS[0];
 }
 
 function channels(hex: string): [number, number, number] {
@@ -48,7 +72,7 @@ function surfaceBands(surface: string): { ok: string; warn: string; crit: string
     : { ok: "#00a35c", warn: "#9a8c00", crit: "#e63e00" };
 }
 
-/** Usage band color that stays readable on the given surface. */
+/** Legacy usage-band color helper retained for status/diagnostic visuals. */
 export function bandFor(surface: string, fraction: number): string {
   const bands = surfaceBands(surface);
   switch (usageBand(fraction)) {
@@ -57,6 +81,14 @@ export function bandFor(surface: string, fraction: number): string {
     case "critical":
     case "exhausted": return bands.crit;
   }
+}
+
+/**
+ * Quota gauges use one user-selected accent. Remaining quota is communicated
+ * by fill length; the neutral track communicates the depleted portion.
+ */
+export function bandForRemaining(_surface: string, _fraction: number): string {
+  return "var(--accent)";
 }
 
 /** Follows the OS light/dark preference; updates live on change. */
@@ -73,8 +105,14 @@ export function useSystemLight(): boolean {
   return light;
 }
 
-/** Effective surface: system mode uses OS defaults, otherwise the custom color. */
-export function resolveSurface(mode: ThemeMode, surface: string, systemLight: boolean): string {
+/** Effective surface: named presets own their surface; custom keeps the existing mode behavior. */
+export function resolveSurface(
+  mode: ThemeMode,
+  surface: string,
+  systemLight: boolean,
+  theme: ThemePresetId = "custom",
+): string {
+  if (theme !== "custom") return getThemePreset(theme).surface;
   if (mode === "system") return systemLight ? LIGHT_SURFACE : DARK_SURFACE;
   return isSurface(surface) ? surface : DARK_SURFACE;
 }
@@ -83,8 +121,8 @@ export function resolveSurface(mode: ThemeMode, surface: string, systemLight: bo
  * CSS variables consumed by styles.css. Surfaces are always solid here —
  * translucency comes from the element-level `opacity` style so the whole
  * notch (rings, glyphs, labels) fades together down to fully invisible.
- * Text and bands auto-contrast against the surface so any picker color
- * stays readable.
+ * Text auto-contrasts against the surface; the gauge accent is applied by
+ * the persisted settings loader on each webview root.
  */
 export function themeVars(surface: string): CSSProperties {
   const base = isSurface(surface) ? surface : DARK_SURFACE;

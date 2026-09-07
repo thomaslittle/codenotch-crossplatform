@@ -60,8 +60,9 @@ pub async fn snapshot() -> ProviderSnapshot {
     match response.json::<Value>().await {
         Ok(body) => match parse_usage(&body) {
             Ok(windows) => {
-                // Headline the most-constrained window: a full monthly quota
-                // blocks usage even when the rolling window looks fine.
+                // The single-value notch gauge represents the short/current
+                // allowance. Weekly and monthly stay visible in the tooltip
+                // and multi-window gauge styles.
                 let headline = headline_id(&windows);
                 ProviderSnapshot {
                     id: "opencode".into(), display_name: "OpenCode".into(), glyph: "▣".into(),
@@ -124,12 +125,13 @@ fn read_api_key() -> Result<SavedCredential, String> {
     Err(format!("OpenCode auth was not found (looked in {}). Run `/connect` in OpenCode and choose OpenCode Go.", tried.join(", ")))
 }
 
-/// Headline the most-constrained window so a full monthly quota reads 100%
-/// on the ring even when the rolling window looks fine.
+/// The headline is the short rolling/current quota. Longer windows remain
+/// available in detail views but should not replace the main at-a-glance gauge.
 fn headline_id(windows: &[LimitWindow]) -> Option<String> {
     windows
         .iter()
-        .max_by(|a, b| a.used_fraction.partial_cmp(&b.used_fraction).unwrap_or(std::cmp::Ordering::Equal))
+        .find(|window| window.id == "rolling")
+        .or_else(|| windows.first())
         .map(|window| window.id.clone())
 }
 
@@ -193,21 +195,21 @@ mod tests {
     }
 
     #[test]
-    fn rejects_empty_usage() {
-        let body: Value = serde_json::json!({"usage": {}});
-        assert!(parse_usage(&body).is_err());
-    }
-
-    #[test]
-    fn headlines_full_monthly_over_empty_rolling() {
+    fn headlines_current_even_when_longer_window_is_more_used() {
         let body: Value = serde_json::json!({
             "usage": {
                 "rolling": {"status": "ok", "percent": 0, "resetsAt": "2026-09-06T05:09:17.909Z"},
-                "weekly": {"status": "ok", "percent": 16, "resetsAt": "2026-09-07T00:00:00.909Z"},
-                "monthly": {"status": "rate-limited", "percent": 100, "resetsAt": "2026-09-19T10:11:08.909Z"}
+                "weekly": {"status": "ok", "percent": 50, "resetsAt": "2026-09-07T00:00:00.909Z"},
+                "monthly": {"status": "ok", "percent": 50, "resetsAt": "2026-09-19T10:11:08.909Z"}
             }
         });
         let windows = parse_usage(&body).unwrap();
-        assert_eq!(headline_id(&windows).as_deref(), Some("monthly"));
+        assert_eq!(headline_id(&windows).as_deref(), Some("rolling"));
+    }
+
+    #[test]
+    fn rejects_empty_usage() {
+        let body: Value = serde_json::json!({"usage": {}});
+        assert!(parse_usage(&body).is_err());
     }
 }

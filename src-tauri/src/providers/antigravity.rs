@@ -101,17 +101,42 @@ fn credential_entry() -> Result<Entry, String> {
     }
 }
 
+/// Antigravity may store arbitrary bytes in the OS credential store. keyring
+/// v3 exposes those through `get_secret`; `get_password` rejects non-UTF8
+/// values before we can decode them.
 fn read_credential() -> Result<Credential, String> {
-    let mut text = credential_entry()?.get_password().map_err(|error| format!("Antigravity credential is unavailable: {error}"))?;
-    if let Some(rest) = text.strip_prefix("go-keyring-base64:") { text = rest.to_owned(); }
-    let bytes = base64::engine::general_purpose::STANDARD.decode(text.trim()).map_err(|_| "Antigravity credential is not valid base64".to_string())?;
-    let root: Value = serde_json::from_slice(&bytes).map_err(|error| format!("Antigravity credential is invalid JSON: {error}"))?;
+    let secret = credential_entry()?.get_secret()
+        .map_err(|error| format!("Antigravity credential is unavailable: {error}"))?;
+    let bytes = decode_credential_secret(&secret)?;
+    let root: Value = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("Antigravity credential is invalid JSON: {error}"))?;
     let token = root.get("token").ok_or("Antigravity token is missing")?;
     let access_token = token.get("access_token").and_then(Value::as_str).filter(|value| !value.is_empty()).ok_or("Antigravity access token is missing")?.to_owned();
     let expiry = token.get("expiry").and_then(Value::as_str).ok_or("Antigravity token expiry is missing")?;
     let expires_at = DateTime::parse_from_rfc3339(expiry).map_err(|_| "Antigravity token expiry is invalid")?.with_timezone(&Utc);
     let auth_method = root.get("auth_method").and_then(Value::as_str).unwrap_or("unknown").to_owned();
     Ok(Credential { access_token, expires_at, auth_method })
+}
+
+fn decode_credential_secret(secret: &[u8]) -> Result<Vec<u8>, String> {
+    // Newer stores can contain the JSON bytes directly.
+    if serde_json::from_slice::<Value>(secret).is_ok() {
+        return Ok(secret.to_vec());
+    }
+
+    // Go's keyring helper commonly stores a UTF-8 base64 wrapper. Keep both
+    // prefixed and plain base64 forms compatible.
+    if let Ok(text) = std::str::from_utf8(secret) {
+        let text = text.trim();
+        let encoded = text.strip_prefix("go-keyring-base64:").unwrap_or(text);
+        if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(encoded) {
+            if serde_json::from_slice::<Value>(&decoded).is_ok() {
+                return Ok(decoded);
+            }
+        }
+    }
+
+    Err("Antigravity credential format is not recognized".into())
 }
 
 fn parse_quota(root: &Value) -> Vec<LimitWindow> {
@@ -143,7 +168,7 @@ fn requests_today() -> Option<u64> {
         for line in text.lines() {
             let Ok(value) = serde_json::from_str::<Value>(line) else { continue };
             if value.get("source").and_then(Value::as_str) != Some("MODEL") { continue; }
-            let Some(stamp) = value.get("created_at").and_then(Value::as_str) else { continue };
+            let Some(stamp) = value.get("created_at").and_then(Value::as_str) else { continue; };
             let Ok(at) = DateTime::parse_from_rfc3339(stamp) else { continue };
             if at.with_timezone(&chrono::Local).date_naive() == today { count += 1; }
         }
@@ -154,11 +179,25 @@ fn requests_today() -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn parses_quota_buckets() {
         let body = serde_json::json!({"buckets":[{"name":"gemini-weekly","displayName":"Gemini weekly","used":25,"limit":100,"resetTime":"2026-09-10T00:00:00Z"}]});
         let windows = parse_quota(&body);
         assert_eq!(windows.len(), 1);
         assert!((windows[0].used_fraction - 0.25).abs() < 0.001);
+    }
+
+    #[test]
+    fn accepts_raw_json_keyring_secret() {
+        let raw = br#"{"token":{"access_token":"x","expiry":"2026-09-10T00:00:00Z"},"auth_method":"consumer"}"#;
+        assert_eq!(decode_credential_secret(raw).unwrap(), raw);
+    }
+
+    #[test]
+    fn accepts_go_keyring_base64_secret() {
+        let raw = br#"{"token":{"access_token":"x","expiry":"2026-09-10T00:00:00Z"},"auth_method":"consumer"}"#;
+        let wrapped = format!("go-keyring-base64:{}", base64::engine::general_purpose::STANDARD.encode(raw));
+        assert_eq!(decode_credential_secret(wrapped.as_bytes()).unwrap(), raw);
     }
 }

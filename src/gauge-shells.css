@@ -1,0 +1,115 @@
+/* Gauge/shell compatibility rules.
+   Shell chrome and gauge geometry are intentionally independent, but a few
+   combinations need bespoke treatment so we do not stack a rectangular tile
+   behind an already self-contained circular gauge. Loaded after shells.css. */
+
+/* Quota color semantics live in the gauge components/theme variables:
+   - selected accent = quota remaining
+   - neutral track = quota already consumed / unavailable portion
+   Do not add traffic-light or provider-specific colors in this stylesheet. */
+
+/* Circular gauges use a bottom-origin clockwise meter convention.
+   Classic's SVG circle naturally progresses clockwise from 3 o'clock, so a
+   +90deg rotation moves its origin to 6 o'clock without reversing direction.
+   Halo is authored from 12 o'clock; rotating that gauge 180deg puts its first
+   active tick at 6 o'clock while its positive tick angles continue clockwise.
+   Horizontal/vertical gauge styles are intentionally untouched. */
+.provider-ring.gauge-classic > svg.ring-svg:first-child {
+  transform-origin: 50% 50%;
+  transform: rotate(90deg);
+}
+.provider-ring.gauge-halo > svg.ring-svg:first-child {
+  transform-origin: 50% 50%;
+  transform: rotate(180deg);
+}
+
+/* Classic + Halo are already complete visual objects. On Dock they should
+   float like dock icons, not sit inside another rounded card. */
+html[data-shell="dock"] .provider-ring.gauge-classic,
+html[data-shell="dock"] .provider-ring.gauge-halo {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, .55));
+}
+
+/* Keep the percentage readable when the ring itself has no backing tile. */
+html[data-shell="dock"] .provider-cell:has(.gauge-classic) .provider-percent,
+html[data-shell="dock"] .provider-cell:has(.gauge-halo) .provider-percent {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .9), 0 0 5px rgba(0, 0, 0, .42);
+}
+
+/* Compact layouts still benefit from restrained glass backing because their
+   bars/columns do not define a strong silhouette on their own. */
+html[data-shell="dock"] .provider-ring.gauge-stacked,
+html[data-shell="dock"] .provider-ring.gauge-columns,
+html[data-shell="dock"] .provider-ring.gauge-micro,
+html[data-shell="dock"] .provider-ring.gauge-slim {
+  background: color-mix(in srgb, var(--black) 24%, transparent);
+  border-color: color-mix(in srgb, var(--text) 8%, transparent);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .14);
+}
+
+/* Stale means 'last known reading', not disabled. Keep it readable. */
+.provider-ring.is-stale {
+  opacity: .82;
+}
+
+/* Reset alerts are transient events, not health/quota indicators. Spell out
+   RESET so the badge cannot be mistaken for usage state or generic "new" UI. */
+.provider-cell[aria-label*="quota refreshed"] > span[aria-hidden="true"] {
+  width: 30px !important;
+  height: 12px !important;
+  top: -5px !important;
+  right: -12px !important;
+  border-radius: 999px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: #ffb020 !important;
+  color: #1b1200 !important;
+  box-shadow: 0 0 9px rgba(255, 176, 32, .72) !important;
+  font-size: 6.5px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  letter-spacing: .2px !important;
+}
+.provider-cell[aria-label*="quota refreshed"] > span[aria-hidden="true"]::after {
+  content: "RESET";
+}
+
+/* The edge reset sliver is only useful while the notch is retracted. Motion
+   renders a fully visible shell with `transform: none`; suppress the global
+   sliver there so it cannot masquerade as a provider badge. */
+.notch-shell[style*="transform: none"] > span[aria-hidden="true"][style*="z-index: 7"] {
+  opacity: 0 !important;
+}
+
+/* Hidden auto-hide notification: same amber reset-event language. The inline
+   geometry is still edge-specific, so only color/chrome is overridden here. */
+.notch-shell > span[aria-hidden="true"][style*="z-index: 7"] {
+  background: #ffb020 !important;
+  box-shadow: 0 0 10px rgba(255, 176, 32, .88) !important;
+}
+.notch-shell > span[aria-hidden="true"][style*="z-index: 8"] {
+  border-color: #ffb020 !important;
+  box-shadow: 0 7px 18px rgba(0,0,0,.38), 0 0 14px rgba(255,176,32,.62) !important;
+}
+.notch-shell > span[aria-hidden="true"][style*="z-index: 8"] > span {
+  width: 25px !important;
+  height: 10px !important;
+  right: -7px !important;
+  top: -3px !important;
+  border-radius: 999px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: #ffb020 !important;
+  color: #1b1200 !important;
+  box-shadow: 0 0 7px rgba(255,176,32,.85) !important;
+  font-size: 5.5px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+.notch-shell > span[aria-hidden="true"][style*="z-index: 8"] > span::after {
+  content: "RESET";
+}

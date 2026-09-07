@@ -1,0 +1,275 @@
+/* Final shell/gauge compatibility layer.
+   This file is intentionally loaded after shells.css, gauge-shells.css and
+   docks.css. Shells own silhouette/chrome; gauges own visualization; layout
+   metrics keep the two coordinated instead of inheriting the original Tab. */
+
+.notch-shell {
+  --shell-surface: color-mix(in srgb, var(--black) var(--shell-bg-percent, 82%), transparent);
+}
+
+/* --------------------------------------------------------------------------
+   Background-strength control
+   -------------------------------------------------------------------------- */
+
+/* Original Tab body + curls. */
+html[data-shell="tab"] .edge-right::before,
+html[data-shell="tab"] .edge-left::before,
+html[data-shell="tab"] .edge-top::before,
+html[data-shell="tab"] .edge-bottom::before {
+  background: var(--shell-surface);
+}
+html[data-shell="tab"] .edge-right::after {
+  background-image:
+    radial-gradient(circle at 0 0, transparent 0 38px, var(--shell-surface) 39px),
+    radial-gradient(circle at 0 100%, transparent 0 38px, var(--shell-surface) 39px);
+}
+html[data-shell="tab"] .edge-left::after {
+  background-image:
+    radial-gradient(circle at 100% 0, transparent 0 38px, var(--shell-surface) 39px),
+    radial-gradient(circle at 100% 100%, transparent 0 38px, var(--shell-surface) 39px);
+}
+html[data-shell="tab"] .edge-top::after {
+  background-image:
+    radial-gradient(circle at 0 100%, transparent 0 38px, var(--shell-surface) 39px),
+    radial-gradient(circle at 100% 100%, transparent 0 38px, var(--shell-surface) 39px);
+}
+html[data-shell="tab"] .edge-bottom::after {
+  background-image:
+    radial-gradient(circle at 0 0, transparent 0 38px, var(--shell-surface) 39px),
+    radial-gradient(circle at 100% 0, transparent 0 38px, var(--shell-surface) 39px);
+}
+
+/* Bubble owns per-provider chrome rather than a shared shell. */
+html[data-shell="bubble"] .provider-cell,
+html[data-shell="bubble"] .settings-orb {
+  background: var(--shell-surface);
+}
+
+/* Continuous simple shells all use the same user-controlled body strength. */
+html[data-shell="sharp"] .notch-shell::before,
+html[data-shell="trapezoid"] .notch-shell::before,
+html[data-shell="pill"] .notch-shell::before {
+  background: var(--shell-surface);
+}
+
+/* Glass Dock uses the same slider for glass density. */
+html[data-shell="dock"] .edge-top::before,
+html[data-shell="dock"] .edge-bottom::before {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--text) 7%, transparent), transparent 38%),
+    var(--shell-surface);
+}
+html[data-shell="dock"] .edge-left::before,
+html[data-shell="dock"] .edge-right::before {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--text) 7%, transparent), transparent 38%),
+    var(--shell-surface);
+}
+html[data-shell="dock"] .provider-ring.gauge-slim,
+html[data-shell="dock"] .provider-ring.gauge-stacked,
+html[data-shell="dock"] .provider-ring.gauge-columns,
+html[data-shell="dock"] .provider-ring.gauge-micro {
+  background: color-mix(in srgb, var(--shell-surface) 42%, transparent);
+}
+
+/* The 3D shelf is its own artwork. Fade only its platform/lip, never gauges. */
+html[data-shell="dock3d"] .notch-shell::before,
+html[data-shell="dock3d"] .notch-shell::after {
+  opacity: var(--shell-bg-opacity, .82);
+}
+
+/* Ghost has no shared body by design. The slider only softens its utility orb. */
+html[data-shell="ghost"] .settings-orb {
+  background: color-mix(in srgb, var(--shell-surface) 72%, transparent);
+}
+
+/* --------------------------------------------------------------------------
+   Remove leaked auto-hide chrome
+   -------------------------------------------------------------------------- */
+
+/* These old 5px pseudo handles were permanently visible even when the notch
+   was expanded, producing the transparent bar seen under Bubble/Ghost/Dock.
+   Native cursor hotspot detection already handles reveal, so no visual bar is
+   required. Dock3d is excluded because ::after is its actual shelf lip. */
+html[data-shell="bubble"] .notch-shell::after,
+html[data-shell="ghost"] .notch-shell::after,
+html[data-shell="dock"] .notch-shell::after {
+  display: none !important;
+  background: none !important;
+  background-image: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   Modern shell geometry
+   -------------------------------------------------------------------------- */
+
+/* Bubble, Sharp, Trapezoid, Pill and Ghost use the same tight provider-cell
+   geometry family as Glass Dock. The native layer is told to use the matching
+   dock metrics too (backend.ts), so transparent click-blocking dead space is
+   minimized rather than merely hidden with CSS. */
+html[data-shell="bubble"] .provider-cell:not(.is-compact),
+html[data-shell="sharp"] .provider-cell:not(.is-compact),
+html[data-shell="trapezoid"] .provider-cell:not(.is-compact),
+html[data-shell="pill"] .provider-cell:not(.is-compact),
+html[data-shell="ghost"] .provider-cell:not(.is-compact) {
+  width: 52px;
+  min-width: 52px;
+  height: 70px;
+  justify-content: center;
+  gap: 5px;
+}
+
+html[data-shell="bubble"] .provider-cell.is-compact,
+html[data-shell="sharp"] .provider-cell.is-compact,
+html[data-shell="trapezoid"] .provider-cell.is-compact,
+html[data-shell="pill"] .provider-cell.is-compact,
+html[data-shell="ghost"] .provider-cell.is-compact {
+  width: 44px !important;
+  min-width: 44px !important;
+  height: 44px !important;
+  padding: 0 !important;
+}
+
+/* Horizontal edges: noncompact circular/slim gauges reserve a 52px cell and
+   compact gauges reserve 44px. End padding deliberately includes Settings. */
+html[data-shell="bubble"] .edge-top .provider-stack,
+html[data-shell="bubble"] .edge-bottom .provider-stack,
+html[data-shell="sharp"] .edge-top .provider-stack,
+html[data-shell="sharp"] .edge-bottom .provider-stack,
+html[data-shell="trapezoid"] .edge-top .provider-stack,
+html[data-shell="trapezoid"] .edge-bottom .provider-stack,
+html[data-shell="pill"] .edge-top .provider-stack,
+html[data-shell="pill"] .edge-bottom .provider-stack,
+html[data-shell="ghost"] .edge-top .provider-stack,
+html[data-shell="ghost"] .edge-bottom .provider-stack {
+  inset: 0 !important;
+  gap: 10px !important;
+  padding: 8px 58px 8px 14px !important;
+}
+html[data-shell="bubble"] .edge-top .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="bubble"] .edge-bottom .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="sharp"] .edge-top .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="sharp"] .edge-bottom .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="trapezoid"] .edge-top .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="trapezoid"] .edge-bottom .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="pill"] .edge-top .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="pill"] .edge-bottom .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="ghost"] .edge-top .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="ghost"] .edge-bottom .provider-stack:has(.provider-cell.is-compact) {
+  gap: 8px !important;
+  padding: 8px 54px 8px 14px !important;
+}
+
+/* Side edges use the same start/end budget rotated vertically. */
+html[data-shell="bubble"] .edge-left .provider-stack,
+html[data-shell="bubble"] .edge-right .provider-stack,
+html[data-shell="sharp"] .edge-left .provider-stack,
+html[data-shell="sharp"] .edge-right .provider-stack,
+html[data-shell="trapezoid"] .edge-left .provider-stack,
+html[data-shell="trapezoid"] .edge-right .provider-stack,
+html[data-shell="pill"] .edge-left .provider-stack,
+html[data-shell="pill"] .edge-right .provider-stack,
+html[data-shell="ghost"] .edge-left .provider-stack,
+html[data-shell="ghost"] .edge-right .provider-stack {
+  inset: 0 !important;
+  gap: 8px !important;
+  padding: 14px 8px 58px !important;
+}
+html[data-shell="bubble"] .edge-left .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="bubble"] .edge-right .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="sharp"] .edge-left .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="sharp"] .edge-right .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="trapezoid"] .edge-left .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="trapezoid"] .edge-right .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="pill"] .edge-left .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="pill"] .edge-right .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="ghost"] .edge-left .provider-stack:has(.provider-cell.is-compact),
+html[data-shell="ghost"] .edge-right .provider-stack:has(.provider-cell.is-compact) {
+  padding: 14px 8px 54px !important;
+}
+
+/* Settings is part of the layout budget instead of floating beyond the icon
+   group. This keeps every silhouette built around providers + utility slot. */
+html[data-shell="bubble"] .edge-top .settings-orb,
+html[data-shell="bubble"] .edge-bottom .settings-orb,
+html[data-shell="sharp"] .edge-top .settings-orb,
+html[data-shell="sharp"] .edge-bottom .settings-orb,
+html[data-shell="trapezoid"] .edge-top .settings-orb,
+html[data-shell="trapezoid"] .edge-bottom .settings-orb,
+html[data-shell="pill"] .edge-top .settings-orb,
+html[data-shell="pill"] .edge-bottom .settings-orb,
+html[data-shell="ghost"] .edge-top .settings-orb,
+html[data-shell="ghost"] .edge-bottom .settings-orb {
+  right: 10px;
+  left: auto;
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+}
+html[data-shell="bubble"] .edge-right .settings-orb,
+html[data-shell="sharp"] .edge-right .settings-orb,
+html[data-shell="trapezoid"] .edge-right .settings-orb,
+html[data-shell="pill"] .edge-right .settings-orb,
+html[data-shell="ghost"] .edge-right .settings-orb {
+  right: 14px;
+  left: auto;
+  bottom: 10px;
+  top: auto;
+}
+html[data-shell="bubble"] .edge-left .settings-orb,
+html[data-shell="sharp"] .edge-left .settings-orb,
+html[data-shell="trapezoid"] .edge-left .settings-orb,
+html[data-shell="pill"] .edge-left .settings-orb,
+html[data-shell="ghost"] .edge-left .settings-orb {
+  left: 14px;
+  right: auto;
+  bottom: 10px;
+  top: auto;
+}
+
+/* Continuous modern silhouettes should wrap that tighter native box instead
+   of reserving the original 39px curl margins. */
+html[data-shell="sharp"] .edge-right::before,
+html[data-shell="sharp"] .edge-left::before,
+html[data-shell="trapezoid"] .edge-right::before,
+html[data-shell="trapezoid"] .edge-left::before,
+html[data-shell="pill"] .edge-right::before,
+html[data-shell="pill"] .edge-left::before {
+  inset: 3px 2px !important;
+}
+html[data-shell="sharp"] .edge-top::before,
+html[data-shell="sharp"] .edge-bottom::before,
+html[data-shell="trapezoid"] .edge-top::before,
+html[data-shell="trapezoid"] .edge-bottom::before,
+html[data-shell="pill"] .edge-top::before,
+html[data-shell="pill"] .edge-bottom::before {
+  inset: 2px 3px !important;
+}
+
+/* Bubble and Ghost should remain genuinely discrete/backgroundless. */
+html[data-shell="bubble"] .notch-shell::before,
+html[data-shell="ghost"] .notch-shell::before {
+  display: none !important;
+}
+
+/* Compact gauge families do not need a full noncompact shell depth visually.
+   The native window remains large enough for hover/animation safety, while the
+   visible body hugs the 44px gauge footprint. */
+html[data-gauge="stacked"]:is([data-shell="sharp"], [data-shell="trapezoid"], [data-shell="pill"]) .edge-top::before,
+html[data-gauge="columns"]:is([data-shell="sharp"], [data-shell="trapezoid"], [data-shell="pill"]) .edge-top::before,
+html[data-gauge="micro"]:is([data-shell="sharp"], [data-shell="trapezoid"], [data-shell="pill"]) .edge-top::before,
+html[data-gauge="stacked"]:is([data-shell="sharp"], [data-shell="trapezoid"], [data-shell="pill"]) .edge-bottom::before,
+html[data-gauge="columns"]:is([data-shell="sharp"], [data-shell="trapezoid"], [data-shell="pill"]) .edge-bottom::before,
+html[data-gauge="micro"]:is([data-shell="sharp"], [data-shell="trapezoid"], [data-shell="pill"]) .edge-bottom::before {
+  top: 10px !important;
+  bottom: 10px !important;
+}
+html[data-gauge="stacked"]:is([data-shell="sharp"], [data-shell="trapezoid"], [data-shell="pill"]) .edge-left::before,
+html[data-gauge="columns"]:is([data-shell="sharp"], [data-shell="trapezoid"], [data-shell="pill"]) .edge-left::before,
+html[data-gauge="micro"]:is([data-shell="sharp"], [data-shell="trapezoid"], [data-shell="pill"]) .edge-left::before,
+html[data-gauge="stacked"]:is([data-shell="sharp"], [data-shell="trapezoid"], [data-shell="pill"]) .edge-right::before,
+html[data-gauge="columns"]:is([data-shell="sharp"], [data-shell="trapezoid"], [data-shell="pill"]) .edge-right::before,
+html[data-gauge="micro"]:is([data-shell="sharp"], [data-shell="trapezoid"], [data-shell="pill"]) .edge-right::before {
+  left: 8px !important;
+  right: 8px !important;
+}
