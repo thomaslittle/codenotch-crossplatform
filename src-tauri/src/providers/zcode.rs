@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use reqwest::redirect::Policy;
 use serde_json::{Map, Value};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
 const ZAI_HOST: &str = "api.z.ai";
@@ -274,7 +274,7 @@ fn parse_quota(
     })
 }
 
-fn normalized_window(object: &Map<String, Value>) -> Option<(f64, Option<String>)> {
+fn normalized_window(object: &Map<String, Value>) -> Option<(f64, Option<DateTime<Utc>>)> {
     let used_fraction = object
         .get("percentage")
         .and_then(Value::as_f64)
@@ -289,8 +289,7 @@ fn normalized_window(object: &Map<String, Value>) -> Option<(f64, Option<String>
     let resets_at = object
         .get("nextResetTime")
         .and_then(Value::as_i64)
-        .and_then(DateTime::<Utc>::from_timestamp_millis)
-        .map(|date| date.to_rfc3339());
+        .and_then(DateTime::<Utc>::from_timestamp_millis);
     Some((used_fraction, resets_at))
 }
 
