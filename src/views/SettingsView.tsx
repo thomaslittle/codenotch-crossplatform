@@ -317,13 +317,28 @@ export function SettingsView() {
 
         <div className="appearance-duo">
           <div>
-            <p className="appearance-label">Opacity <output>{Math.round(settings.opacity * 100)}%</output></p>
-            <input type="range" className="opacity-slider" min={0} max={100} step={1} value={Math.round(settings.opacity * 100)} aria-label="Notch opacity" onChange={(event) => update({ ...settings, opacity: Number(event.target.value) / 100 })} />
+            <p className="appearance-label">Shell background <output>{Math.round(settings.shellBackgroundOpacity * 100)}%</output></p>
+            <input
+              type="range"
+              className="opacity-slider"
+              min={0}
+              max={100}
+              step={1}
+              value={Math.round(settings.shellBackgroundOpacity * 100)}
+              aria-label="Shell background opacity"
+              onChange={(event) => update({ ...settings, shellBackgroundOpacity: Number(event.target.value) / 100 })}
+            />
           </div>
           <div>
-            <p className="appearance-label">Notch size <output>{Math.round(settings.scale * 100)}%</output></p>
-            <input type="range" className="opacity-slider" min={70} max={130} step={5} value={Math.round(settings.scale * 100)} aria-label="Notch size" onChange={(event) => update({ ...settings, scale: Number(event.target.value) / 100 })} />
+            <p className="appearance-label">Widget opacity <output>{Math.round(settings.opacity * 100)}%</output></p>
+            <input type="range" className="opacity-slider" min={0} max={100} step={1} value={Math.round(settings.opacity * 100)} aria-label="Widget opacity" onChange={(event) => update({ ...settings, opacity: Number(event.target.value) / 100 })} />
           </div>
+        </div>
+        <p className="appearance-label" style={{ marginTop: 6, marginBottom: 0 }}>Shell background changes body/glass strength without fading the gauges themselves.</p>
+
+        <div style={{ marginTop: 12 }}>
+          <p className="appearance-label">Notch size <output>{Math.round(settings.scale * 100)}%</output></p>
+          <input type="range" className="opacity-slider" min={70} max={130} step={5} value={Math.round(settings.scale * 100)} aria-label="Notch size" onChange={(event) => update({ ...settings, scale: Number(event.target.value) / 100 })} />
         </div>
       </motion.section>
 
