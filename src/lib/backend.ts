@@ -15,6 +15,22 @@ export async function getSnapshots(): Promise<ProviderSnapshot[]> {
   return (await res.json()) as ProviderSnapshot[];
 }
 
+function nativeShellLayout(shellStyle: ShellStyle): ShellStyle {
+  // These modern shells do not use the original Tab curls, so giving native
+  // placement Tab geometry creates large transparent dead zones around them.
+  // Reuse the tight dock metrics while CSS owns each shell's actual silhouette.
+  switch (shellStyle) {
+    case "bubble":
+    case "sharp":
+    case "trapezoid":
+    case "pill":
+    case "ghost":
+      return "dock";
+    default:
+      return shellStyle;
+  }
+}
+
 export async function setEdge(
   edge: Edge,
   providerCount: number,
@@ -26,7 +42,16 @@ export async function setEdge(
   shellStyle: ShellStyle = "tab",
 ): Promise<void> {
   if (!runningInTauri()) return;
-  await throttledInvoke("set_edge", { edge, providerCount, scale, monitor, offsetX, offsetY, compact, shellStyle });
+  await throttledInvoke("set_edge", {
+    edge,
+    providerCount,
+    scale,
+    monitor,
+    offsetX,
+    offsetY,
+    compact,
+    shellStyle: nativeShellLayout(shellStyle),
+  });
 }
 
 // Window placement invokes are throttled (leading + trailing): slider drags
@@ -79,7 +104,13 @@ export async function showTooltip(
 ): Promise<void> {
   if (!runningInTauri()) return;
   try {
-    await invoke("show_tooltip", { edge, index, scale, compact, shellStyle });
+    await invoke("show_tooltip", {
+      edge,
+      index,
+      scale,
+      compact,
+      shellStyle: nativeShellLayout(shellStyle),
+    });
   } catch (error) {
     console.error("[codenotch] show_tooltip failed:", error);
     throw error;
