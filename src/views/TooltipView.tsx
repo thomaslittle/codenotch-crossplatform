@@ -1,6 +1,7 @@
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { formatPercent, formatReset, remainingFraction } from "../lib/usage";
 import { runningInTauri } from "../lib/backend";
 import { loadSettings } from "../lib/settings";
@@ -40,7 +41,7 @@ export function TooltipView() {
   return (
     <main
       className={`tooltip-stage tooltip-${edge}`}
-      style={{ ...themeVars(surface), "--accent": settings.accent } as React.CSSProperties}
+      style={{ ...themeVars(surface), "--accent": settings.accent } as CSSProperties}
       onMouseEnter={() => runningInTauri() && void emitTo("notch", "tooltip:hover")}
       onMouseLeave={() => runningInTauri() && void emitTo("notch", "tooltip:leave")}
     >
