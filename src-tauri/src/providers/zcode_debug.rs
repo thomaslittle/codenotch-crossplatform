@@ -73,9 +73,10 @@ fn run() {
                 .copied()
                 .filter(|needle| lower.contains(needle))
                 .collect::<Vec<_>>();
-            let root_keys = serde_json::from_str::<Value>(&text)
-                .ok()
-                .map(|value| root_key_summary(&value))
+            let parsed = serde_json::from_str::<Value>(&text).ok();
+            let root_keys = parsed
+                .as_ref()
+                .map(root_key_summary)
                 .unwrap_or_default();
 
             if hits.is_empty() && root_keys.is_empty() {
@@ -88,7 +89,129 @@ fn run() {
                 hits.join(","),
                 root_keys.join(","),
             );
+
+            if is_target_plan_file(relative) {
+                if let Some(value) = parsed.as_ref() {
+                    let mut summaries = Vec::new();
+                    collect_safe_plan_summary(value, "", 0, &mut summaries);
+                    for summary in summaries.into_iter().take(80) {
+                        eprintln!("[zcode-debug] detail file={} {}", relative.display(), summary);
+                    }
+                }
+            }
         }
+    }
+}
+
+fn is_target_plan_file(path: &Path) -> bool {
+    let normalized = path.to_string_lossy().replace('\\', "/").to_ascii_lowercase();
+    normalized == "v2/coding-plan-cache.json" || normalized == "v2/config.json"
+}
+
+fn collect_safe_plan_summary(value: &Value, prefix: &str, depth: usize, output: &mut Vec<String>) {
+    if depth > 8 || output.len() >= 80 {
+        return;
+    }
+    match value {
+        Value::Object(object) => {
+            for (key, child) in object {
+                if sensitive_key(key) {
+                    continue;
+                }
+                let path = if prefix.is_empty() {
+                    key.clone()
+                } else {
+                    format!("{prefix}.{key}")
+                };
+                match child {
+                    Value::Object(_) | Value::Array(_) => {
+                        output.push(format!("{path}=<{}>", value_kind(child)));
+                        collect_safe_plan_summary(child, &path, depth + 1, output);
+                    }
+                    _ => {
+                        if let Some(rendered) = safe_scalar(&path, child) {
+                            output.push(format!("{path}={rendered}"));
+                        }
+                    }
+                }
+                if output.len() >= 80 {
+                    break;
+                }
+            }
+        }
+        Value::Array(values) => {
+            for (index, child) in values.iter().take(12).enumerate() {
+                let path = format!("{prefix}[{index}]");
+                match child {
+                    Value::Object(_) | Value::Array(_) => {
+                        output.push(format!("{path}=<{}>", value_kind(child)));
+                        collect_safe_plan_summary(child, &path, depth + 1, output);
+                    }
+                    _ => {
+                        if let Some(rendered) = safe_scalar(&path, child) {
+                            output.push(format!("{path}={rendered}"));
+                        }
+                    }
+                }
+                if output.len() >= 80 {
+                    break;
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn safe_scalar(path: &str, value: &Value) -> Option<String> {
+    let lower_path = path.to_ascii_lowercase();
+    let safe_path = [
+        "plan",
+        "status",
+        "tier",
+        "level",
+        "type",
+        "enabled",
+        "reset",
+        "limit",
+        "usage",
+        "remaining",
+        "percentage",
+        "balance",
+        "trial",
+        "daily",
+        "version",
+        "baseurl",
+        "base_url",
+    ]
+    .iter()
+    .any(|needle| lower_path.contains(needle));
+
+    match value {
+        Value::Bool(value) if safe_path => Some(value.to_string()),
+        Value::Number(value) if safe_path => Some(value.to_string()),
+        Value::String(value) => {
+            let lower = value.to_ascii_lowercase();
+            let keyword_value = KEYWORDS.iter().any(|needle| lower.contains(needle));
+            if !safe_path && !keyword_value {
+                return None;
+            }
+            let cleaned = value.replace(['\r', '\n', '\t'], " ");
+            let truncated = cleaned.chars().take(120).collect::<String>();
+            Some(format!("{:?}", truncated))
+        }
+        Value::Null if safe_path => Some("null".into()),
+        _ => None,
+    }
+}
+
+fn value_kind(value: &Value) -> &'static str {
+    match value {
+        Value::Object(_) => "object",
+        Value::Array(_) => "array",
+        Value::String(_) => "string",
+        Value::Number(_) => "number",
+        Value::Bool(_) => "bool",
+        Value::Null => "null",
     }
 }
 
