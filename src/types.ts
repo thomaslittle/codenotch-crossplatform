@@ -58,7 +58,9 @@ export interface ClientSettings {
   surface: string;
   /** Gauge/highlight accent (`#rrggbb`). Quota amount is conveyed by fill length, not semantic traffic-light colors. */
   accent: string;
-  /** Notch + card surface opacity, 0–1. */
+  /** Shell/body chrome strength, 0–1. Gauges/icons remain independently readable. */
+  shellBackgroundOpacity: number;
+  /** Whole-widget opacity, 0–1. */
   opacity: number;
   /** Notch scale factor, 0.7–1.3. */
   scale: number;
