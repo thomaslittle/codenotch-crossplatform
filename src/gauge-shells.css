@@ -56,37 +56,36 @@ html[data-shell="dock"] .provider-ring.gauge-slim {
   opacity: .82;
 }
 
-/* Reset alerts are events, not health indicators. A literal NEW pill is much
-   clearer than a symbolic dot/arrow and cannot be confused with quota color. */
+/* Reset alerts are transient events, not health/quota indicators. Spell out
+   RESET so the badge cannot be mistaken for usage state or generic "new" UI. */
 .provider-cell[aria-label*="quota refreshed"] > span[aria-hidden="true"] {
-  width: 22px !important;
+  width: 30px !important;
   height: 12px !important;
   top: -5px !important;
-  right: -8px !important;
+  right: -12px !important;
   border-radius: 999px !important;
   display: grid !important;
   place-items: center !important;
   background: #ffb020 !important;
   color: #1b1200 !important;
   box-shadow: 0 0 9px rgba(255, 176, 32, .72) !important;
-  font-size: 7px !important;
+  font-size: 6.5px !important;
   line-height: 1 !important;
   font-weight: 900 !important;
-  letter-spacing: .25px !important;
+  letter-spacing: .2px !important;
 }
 .provider-cell[aria-label*="quota refreshed"] > span[aria-hidden="true"]::after {
-  content: "NEW";
+  content: "RESET";
 }
 
 /* The edge reset sliver is only useful while the notch is retracted. Motion
    renders a fully visible shell with `transform: none`; suppress the global
-   sliver there so it cannot masquerade as a provider badge (it previously sat
-   over the center provider, which made Codex look vertically misaligned). */
+   sliver there so it cannot masquerade as a provider badge. */
 .notch-shell[style*="transform: none"] > span[aria-hidden="true"][style*="z-index: 7"] {
   opacity: 0 !important;
 }
 
-/* Hidden auto-hide notification: same amber event language. The inline
+/* Hidden auto-hide notification: same amber reset-event language. The inline
    geometry is still edge-specific, so only color/chrome is overridden here. */
 .notch-shell > span[aria-hidden="true"][style*="z-index: 7"] {
   background: #ffb020 !important;
@@ -97,9 +96,9 @@ html[data-shell="dock"] .provider-ring.gauge-slim {
   box-shadow: 0 7px 18px rgba(0,0,0,.38), 0 0 14px rgba(255,176,32,.62) !important;
 }
 .notch-shell > span[aria-hidden="true"][style*="z-index: 8"] > span {
-  width: 18px !important;
+  width: 25px !important;
   height: 10px !important;
-  right: -3px !important;
+  right: -7px !important;
   top: -3px !important;
   border-radius: 999px !important;
   display: grid !important;
@@ -107,10 +106,10 @@ html[data-shell="dock"] .provider-ring.gauge-slim {
   background: #ffb020 !important;
   color: #1b1200 !important;
   box-shadow: 0 0 7px rgba(255,176,32,.85) !important;
-  font-size: 6px !important;
+  font-size: 5.5px !important;
   font-weight: 900 !important;
   line-height: 1 !important;
 }
 .notch-shell > span[aria-hidden="true"][style*="z-index: 8"] > span::after {
-  content: "NEW";
+  content: "RESET";
 }
