@@ -8,6 +8,7 @@ use std::time::Duration;
 
 const MANAGE_URL: &str = "https://openrouter.ai/settings/keys";
 const KEY_ENDPOINT: &str = "https://openrouter.ai/api/v1/key";
+const CREDITS_ENDPOINT: &str = "https://openrouter.ai/api/v1/credits";
 
 #[derive(Debug, Clone)]
 struct Credential {
@@ -31,6 +32,10 @@ pub async fn snapshot() -> ProviderSnapshot {
         }
     };
 
+    let account = |label: Option<String>, free_tier: Option<bool>| {
+        Some(account_from_source(&credential.source, label, free_tier))
+    };
+
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
         .build()
@@ -44,7 +49,7 @@ pub async fn snapshot() -> ProviderSnapshot {
                 "error",
                 error.to_string(),
                 MANAGE_URL,
-                Some(account_from_source(&credential.source, None, None)),
+                account(None, None),
             )
         }
     };
@@ -67,7 +72,7 @@ pub async fn snapshot() -> ProviderSnapshot {
                 "error",
                 format!("OpenRouter usage request failed: {error}"),
                 MANAGE_URL,
-                Some(account_from_source(&credential.source, None, None)),
+                account(None, None),
             )
         }
     };
@@ -80,7 +85,7 @@ pub async fn snapshot() -> ProviderSnapshot {
             "needsAuth",
             "OpenRouter rejected the discovered API key. Refresh the key in OpenRouter, OpenCode, or the T3 provider instance that owns it.",
             MANAGE_URL,
-            Some(account_from_source(&credential.source, None, None)),
+            account(None, None),
         );
     }
     if !response.status().is_success() {
@@ -92,7 +97,7 @@ pub async fn snapshot() -> ProviderSnapshot {
             "error",
             format!("OpenRouter key endpoint returned {status}"),
             MANAGE_URL,
-            Some(account_from_source(&credential.source, None, None)),
+            account(None, None),
         );
     }
 
@@ -106,12 +111,20 @@ pub async fn snapshot() -> ProviderSnapshot {
                 "error",
                 format!("Could not decode OpenRouter usage: {error}"),
                 MANAGE_URL,
-                Some(account_from_source(&credential.source, None, None)),
+                account(None, None),
             )
         }
     };
 
-    match parse_key_usage(&body, &credential.source) {
+    // OpenRouter's /key endpoint is per-key. An uncapped routing key can still
+    // belong to a prepaid account with a real dollar balance. Query /credits
+    // opportunistically with the same credential; some OpenRouter accounts
+    // allow ordinary routing keys here even though the reference describes it
+    // as a management-key endpoint. A 401/403 is non-fatal and falls back to
+    // the per-key spend data.
+    let credit_balance = fetch_credit_balance(&client, &credential).await;
+
+    match parse_key_usage(&body, &credential.source, credit_balance) {
         Ok(snapshot) => snapshot,
         Err(message) => ProviderSnapshot::unavailable(
             "openrouter",
@@ -120,9 +133,32 @@ pub async fn snapshot() -> ProviderSnapshot {
             "error",
             message,
             MANAGE_URL,
-            Some(account_from_source(&credential.source, None, None)),
+            account(None, None),
         ),
     }
+}
+
+async fn fetch_credit_balance(client: &reqwest::Client, credential: &Credential) -> Option<f64> {
+    let response = client
+        .get(CREDITS_ENDPOINT)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", credential.key),
+        )
+        .send()
+        .await
+        .ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    let body = response.json::<Value>().await.ok()?;
+    let data = body.get("data")?.as_object()?;
+    let total_credits = data.get("total_credits")?.as_f64()?;
+    let total_usage = data.get("total_usage")?.as_f64()?;
+    if !total_credits.is_finite() || !total_usage.is_finite() {
+        return None;
+    }
+    Some((total_credits - total_usage).max(0.0))
 }
 
 fn account_from_source(
@@ -137,7 +173,11 @@ fn account_from_source(
     }
 }
 
-fn parse_key_usage(root: &Value, source: &str) -> Result<ProviderSnapshot, String> {
+fn parse_key_usage(
+    root: &Value,
+    source: &str,
+    account_balance: Option<f64>,
+) -> Result<ProviderSnapshot, String> {
     let data = root
         .get("data")
         .and_then(Value::as_object)
@@ -157,6 +197,10 @@ fn parse_key_usage(root: &Value, source: &str) -> Result<ProviderSnapshot, Strin
         .get("limit_reset")
         .and_then(Value::as_str)
         .map(str::to_ascii_lowercase);
+    let weekly_spend = data
+        .get("usage_weekly")
+        .and_then(Value::as_f64)
+        .filter(|value| value.is_finite());
 
     let mut windows = Vec::new();
     let mut headline_id = None;
@@ -177,36 +221,42 @@ fn parse_key_usage(root: &Value, source: &str) -> Result<ProviderSnapshot, Strin
                 Some("monthly") => "Monthly key limit",
                 _ => "Key limit",
             };
-            let used_fraction = ((limit - remaining) / limit).clamp(0.0, 1.0);
             windows.push(LimitWindow {
                 id: id.into(),
                 label: label.into(),
-                used_fraction,
+                used_fraction: ((limit - remaining) / limit).clamp(0.0, 1.0),
                 // OpenRouter exposes the cadence but not the exact next reset
                 // timestamp from GET /api/v1/key. Do not invent one.
                 resets_at: None,
             });
             headline_id = Some(id.into());
+            if let Some(balance) = account_balance {
+                message = Some(format!("OpenRouter account balance ${balance:.2}."));
+            }
         }
     }
 
     if windows.is_empty() {
-        // Ordinary OpenRouter API keys are often uncapped. The key endpoint can
-        // still report spend, but without a denominator there is no honest
-        // remaining percentage to draw. Show weekly spend as an absolute value
-        // and explain how a key limit enables the gauge instead of fabricating
-        // a quota.
-        if let Some(weekly) = data.get("usage_weekly").and_then(Value::as_f64) {
-            if weekly.is_finite() {
-                display_value = Some(format!("${weekly:.2}"));
-                message = Some(format!(
-                    "No OpenRouter spending limit is set on this API key. Weekly spend is ${weekly:.2}. Set a key limit in OpenRouter to enable a remaining-percent gauge."
-                ));
-            }
-        }
-        if message.is_none() {
+        if let Some(balance) = account_balance.filter(|value| value.is_finite()) {
+            // Account credits are a dollar balance, not a periodic quota. Keep
+            // the circular gauge neutral and show the actual money remaining.
+            display_value = Some(format!("${balance:.2}"));
+            message = Some(match weekly_spend {
+                Some(weekly) => format!(
+                    "OpenRouter account balance is ${balance:.2}. This API key has no separate spending limit. Weekly spend is ${weekly:.2}."
+                ),
+                None => format!(
+                    "OpenRouter account balance is ${balance:.2}. This API key has no separate spending limit."
+                ),
+            });
+        } else if let Some(weekly) = weekly_spend {
+            display_value = Some(format!("${weekly:.2}"));
+            message = Some(format!(
+                "No OpenRouter spending limit is set on this API key, and the account credit-balance endpoint was unavailable to this key. Weekly spend is ${weekly:.2}."
+            ));
+        } else {
             message = Some(
-                "No OpenRouter spending limit is set on this API key, so there is no honest remaining percentage to display. Set a key limit in OpenRouter to enable the gauge."
+                "No OpenRouter spending limit is set on this API key, and the account credit-balance endpoint was unavailable to this key."
                     .into(),
             );
         }
@@ -268,7 +318,6 @@ fn read_api_key() -> Result<Credential, String> {
 
     // T3 can run OpenCode as its provider, in which case the OpenRouter key is
     // owned by OpenCode rather than copied into T3's provider environment.
-    // OpenCode stores connected provider credentials in auth.json on every OS.
     for auth_path in opencode_auth_paths() {
         if let Some(credential) = credential_from_opencode_auth(&auth_path) {
             return Ok(credential);
@@ -341,7 +390,6 @@ fn t3_settings_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
     for root in roots {
         paths.push(root.join("userdata").join("settings.json"));
-        // Useful for contributors running T3's desktop/server dev build.
         paths.push(root.join("dev").join("settings.json"));
     }
     paths
@@ -353,17 +401,19 @@ fn credential_from_t3_settings(settings_path: &Path) -> Option<Credential> {
     let instances = root.get("providerInstances")?.as_object()?;
 
     for (instance_id, instance) in instances {
-        let environment = instance.get("environment")?.as_array()?;
+        let Some(environment) = instance.get("environment").and_then(Value::as_array) else {
+            continue;
+        };
         let display_name = instance
             .get("displayName")
             .and_then(Value::as_str)
             .filter(|value| !value.trim().is_empty())
             .unwrap_or(instance_id);
 
-        let openrouter_key = environment.iter().find(|entry| {
-            env_name(entry).is_some_and(|name| name == "OPENROUTER_API_KEY")
-        });
-        if let Some(entry) = openrouter_key {
+        if let Some(entry) = environment
+            .iter()
+            .find(|entry| env_name(entry) == Some("OPENROUTER_API_KEY"))
+        {
             if let Some(key) = t3_env_value(settings_path, instance_id, entry) {
                 return Some(Credential {
                     key,
@@ -388,7 +438,7 @@ fn credential_from_t3_settings(settings_path: &Path) -> Option<Credential> {
         for token_name in ["ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY"] {
             if let Some(entry) = environment
                 .iter()
-                .find(|entry| env_name(entry).is_some_and(|name| name == token_name))
+                .find(|entry| env_name(entry) == Some(token_name))
             {
                 if let Some(key) = t3_env_value(settings_path, instance_id, entry) {
                     return Some(Credential {
@@ -407,12 +457,12 @@ fn env_name(entry: &Value) -> Option<&str> {
 }
 
 fn t3_env_value(settings_path: &Path, instance_id: &str, entry: &Value) -> Option<String> {
-    let direct = entry
+    if let Some(value) = entry
         .get("value")
         .and_then(Value::as_str)
         .map(str::trim)
-        .filter(|value| !value.is_empty());
-    if let Some(value) = direct {
+        .filter(|value| !value.is_empty())
+    {
         return Some(value.into());
     }
 
@@ -495,16 +545,16 @@ mod tests {
                 "usage_monthly": 25.5
             }
         });
-        let snapshot = parse_key_usage(&body, "T3 Code · Router").unwrap();
+        let snapshot = parse_key_usage(&body, "T3 Code · Router", Some(12.34)).unwrap();
         assert_eq!(snapshot.status, "ok");
         assert_eq!(snapshot.headline_id.as_deref(), Some("monthly"));
         assert_eq!(snapshot.windows.len(), 1);
         assert!((snapshot.windows[0].used_fraction - 0.255).abs() < 0.0001);
-        assert_eq!(snapshot.account.unwrap().source.as_deref(), Some("T3 Code · Router"));
+        assert!(snapshot.message.as_deref().is_some_and(|message| message.contains("$12.34")));
     }
 
     #[test]
-    fn uncapped_key_uses_absolute_weekly_spend_without_fake_percentage() {
+    fn uncapped_key_prefers_account_balance_over_weekly_spend() {
         let body = serde_json::json!({
             "data": {
                 "label": "sk-or-v1-test...123",
@@ -512,15 +562,32 @@ mod tests {
                 "limit": null,
                 "limit_remaining": null,
                 "limit_reset": null,
-                "usage": 25.5,
-                "usage_daily": 2.0,
-                "usage_weekly": 11.25,
-                "usage_monthly": 25.5
+                "usage": 47.56,
+                "usage_daily": 0.0,
+                "usage_weekly": 0.0,
+                "usage_monthly": 0.0
             }
         });
-        let snapshot = parse_key_usage(&body, "OPENROUTER_API_KEY").unwrap();
+        let snapshot = parse_key_usage(&body, "OPENROUTER_API_KEY", Some(2.44)).unwrap();
         assert!(snapshot.windows.is_empty());
+        assert_eq!(snapshot.display_value.as_deref(), Some("$2.44"));
+        assert!(snapshot.message.as_deref().is_some_and(|message| message.contains("account balance is $2.44")));
+    }
+
+    #[test]
+    fn uncapped_key_falls_back_to_weekly_spend_when_balance_is_unavailable() {
+        let body = serde_json::json!({
+            "data": {
+                "label": "sk-or-v1-test...123",
+                "is_free_tier": false,
+                "limit": null,
+                "limit_remaining": null,
+                "limit_reset": null,
+                "usage_weekly": 11.25
+            }
+        });
+        let snapshot = parse_key_usage(&body, "OPENROUTER_API_KEY", None).unwrap();
         assert_eq!(snapshot.display_value.as_deref(), Some("$11.25"));
-        assert!(snapshot.message.as_deref().is_some_and(|message| message.contains("No OpenRouter spending limit")));
+        assert!(snapshot.message.as_deref().is_some_and(|message| message.contains("balance endpoint was unavailable")));
     }
 }
