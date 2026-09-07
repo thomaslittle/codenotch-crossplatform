@@ -77,12 +77,18 @@ export function clearUsageResetAlerts(providerId?: string): UsageResetAlert[] {
  * Compare fresh official snapshots to the last good baseline.
  * A reset requires both a later reset timestamp and a material usage drop,
  * so stale-data repair or tiny accounting corrections do not notify.
+ *
+ * Unread reset alerts are also retired automatically once the newly refreshed
+ * allowance has been consumed back to within MIN_DROP of the pre-reset usage
+ * level. That keeps the badge meaningful: it means extra quota is still
+ * available, not merely that a reset happened sometime in the past.
  */
 export function processUsageResetSnapshots(snapshots: ProviderSnapshot[]): UsageResetAlert[] {
   const baseline = readJson<Baseline>(BASELINE_KEY, {});
-  const alerts = getUsageResetAlerts();
+  let alerts = getUsageResetAlerts();
   const knownAlertIds = new Set(alerts.map((alert) => alert.id));
   const nextBaseline: Baseline = { ...baseline };
+  const currentUsage = new Map<string, number>();
 
   for (const snapshot of snapshots) {
     if (snapshot.status !== "ok") continue;
@@ -92,6 +98,7 @@ export function processUsageResetSnapshots(snapshots: ProviderSnapshot[]): Usage
       const key = baselineKey(snapshot.id, window.id);
       const previous = baseline[key];
       const currentReset = window.resetsAt ?? null;
+      currentUsage.set(key, window.usedFraction);
 
       if (
         previous
@@ -121,6 +128,12 @@ export function processUsageResetSnapshots(snapshots: ProviderSnapshot[]): Usage
       };
     }
   }
+
+  alerts = alerts.filter((alert) => {
+    const usedFraction = currentUsage.get(baselineKey(alert.providerId, alert.windowId));
+    if (usedFraction == null) return true;
+    return usedFraction < alert.previousUsedFraction - MIN_DROP;
+  });
 
   writeJson(BASELINE_KEY, nextBaseline);
   writeJson(ALERTS_KEY, alerts);
