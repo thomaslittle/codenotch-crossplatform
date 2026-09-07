@@ -3,61 +3,15 @@
    combinations need bespoke treatment so we do not stack a rectangular tile
    behind an already self-contained circular gauge. Loaded after shells.css. */
 
-/* Quota gauges show both sides of the allowance at a glance:
-   - colored fill/ticks = quota remaining
-   - red track = quota already depleted
-   A full allowance covers the red track completely; a zero allowance leaves
-   a fully red gauge instead of disappearing into a neutral gray track. */
-.provider-cell .gauge-classic .ring-track {
-  stroke: var(--orange);
-  stroke-width: 3;
-  opacity: .9;
-}
+/* Quota color semantics live in the gauge components/theme variables:
+   - selected accent = quota remaining
+   - neutral track = quota already consumed / unavailable portion
+   Do not add traffic-light or provider-specific colors in this stylesheet. */
 
-/* Halo's active ticks carry their remaining-quota color inline and its inactive
-   ticks have no style attribute, so only depleted ticks become red. */
-.provider-cell .gauge-halo line:not([style]) {
-  stroke: var(--orange);
-  opacity: .9;
-}
-
-/* Slim has one headline rail; the remaining fill sits over this red depleted
-   track. !important intentionally beats the component's inline neutral track. */
-.provider-cell .gauge-slim > div[aria-hidden="true"] {
-  background: var(--orange) !important;
-}
-
-/* Stacked, Micro and Columns expose each real quota window as an element with
-   a `... remaining` title. Make the unfilled part of every real meter red. */
-.provider-cell .gauge-stacked span[title$=" remaining"],
-.provider-cell .gauge-micro span[title$=" remaining"],
-.provider-cell .gauge-columns span[title$=" remaining"] {
-  background: var(--orange) !important;
-}
-
-/* Tooltip bars use the same remaining-vs-depleted language. */
-.limit-track {
-  background: var(--orange);
-}
-
-/* Missing quota data is unknown, not depleted. Keep unavailable providers on
-   the neutral track instead of falsely painting them red. */
-.provider-cell[aria-label*="usage unavailable"] .gauge-classic .ring-track {
-  stroke: var(--track);
-}
-.provider-cell[aria-label*="usage unavailable"] .gauge-halo line:not([style]) {
-  stroke: var(--track);
-}
-.provider-cell[aria-label*="usage unavailable"] .gauge-slim > div[aria-hidden="true"] {
-  background: var(--track) !important;
-}
-
-/* Classic + Halo are already complete visual objects. On Dock and Rail they
-   should float like dock icons, not sit inside another rounded card. */
+/* Classic + Halo are already complete visual objects. On Dock they should
+   float like dock icons, not sit inside another rounded card. */
 html[data-shell="dock"] .provider-ring.gauge-classic,
-html[data-shell="dock"] .provider-ring.gauge-halo,
-html[data-shell="rail"] .provider-ring.gauge-classic,
-html[data-shell="rail"] .provider-ring.gauge-halo {
+html[data-shell="dock"] .provider-ring.gauge-halo {
   background: transparent;
   border: 0;
   box-shadow: none;
@@ -67,15 +21,12 @@ html[data-shell="rail"] .provider-ring.gauge-halo {
 
 /* Keep the percentage readable when the ring itself has no backing tile. */
 html[data-shell="dock"] .provider-cell:has(.gauge-classic) .provider-percent,
-html[data-shell="dock"] .provider-cell:has(.gauge-halo) .provider-percent,
-html[data-shell="rail"] .provider-cell:has(.gauge-classic) .provider-percent,
-html[data-shell="rail"] .provider-cell:has(.gauge-halo) .provider-percent {
+html[data-shell="dock"] .provider-cell:has(.gauge-halo) .provider-percent {
   text-shadow: 0 1px 3px rgba(0, 0, 0, .9), 0 0 5px rgba(0, 0, 0, .42);
 }
 
-/* The compact layouts still benefit from a restrained glass tile because the
-   bars/columns do not define their own silhouette. Keep it lighter on Dock so
-   it reads as a dock surface rather than a stack of cards. */
+/* Compact layouts still benefit from restrained glass backing because their
+   bars/columns do not define a strong silhouette on their own. */
 html[data-shell="dock"] .provider-ring.gauge-stacked,
 html[data-shell="dock"] .provider-ring.gauge-columns,
 html[data-shell="dock"] .provider-ring.gauge-micro,
@@ -85,11 +36,43 @@ html[data-shell="dock"] .provider-ring.gauge-slim {
   box-shadow: 0 4px 10px rgba(0, 0, 0, .14);
 }
 
-html[data-shell="rail"] .provider-ring.gauge-stacked,
-html[data-shell="rail"] .provider-ring.gauge-columns,
-html[data-shell="rail"] .provider-ring.gauge-micro,
-html[data-shell="rail"] .provider-ring.gauge-slim {
-  background: color-mix(in srgb, var(--black) 52%, transparent);
-  border-color: color-mix(in srgb, var(--text) 12%, transparent);
-  box-shadow: 0 3px 9px rgba(0, 0, 0, .16);
+/* Stale means 'last known reading', not disabled. Keep it readable. */
+.provider-ring.is-stale {
+  opacity: .82;
+}
+
+/* Reset alerts are an event, not a health indicator. Turn the old green dot
+   into an amber refresh badge so it cannot be mistaken for quota remaining. */
+.provider-cell[aria-label*="quota refreshed"] > span[aria-hidden="true"] {
+  width: 14px !important;
+  height: 14px !important;
+  top: -5px !important;
+  right: -4px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: #ffb020 !important;
+  color: #1b1200 !important;
+  box-shadow: 0 0 9px rgba(255, 176, 32, .82) !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+}
+.provider-cell[aria-label*="quota refreshed"] > span[aria-hidden="true"]::after {
+  content: "↻";
+  transform: translateY(-.5px);
+}
+
+/* Hidden auto-hide notification: same amber event language. The inline
+   geometry is still edge-specific, so only color/chrome is overridden here. */
+.notch-shell > span[aria-hidden="true"][style*="z-index: 7"] {
+  background: #ffb020 !important;
+  box-shadow: 0 0 10px rgba(255, 176, 32, .88) !important;
+}
+.notch-shell > span[aria-hidden="true"][style*="z-index: 8"] {
+  border-color: #ffb020 !important;
+  box-shadow: 0 7px 18px rgba(0,0,0,.38), 0 0 14px rgba(255,176,32,.62) !important;
+}
+.notch-shell > span[aria-hidden="true"][style*="z-index: 8"] > span {
+  background: #ffb020 !important;
+  box-shadow: 0 0 7px rgba(255,176,32,.85) !important;
 }
