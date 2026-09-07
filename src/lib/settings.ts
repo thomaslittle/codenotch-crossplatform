@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS: ClientSettings = {
   mode: "system",
   surface: "#000000",
   accent: "#4da3ff",
+  shellBackgroundOpacity: 0.82,
   opacity: 1,
   scale: 1,
   offsetX: 0,
@@ -27,10 +28,17 @@ function clampNumber(value: unknown, min: number, max: number, fallback: number)
     : fallback;
 }
 
-function applyAppearance(shellStyle: ShellStyle, accent: string): void {
+function applyAppearance(
+  shellStyle: ShellStyle,
+  gaugeStyle: GaugeStyle,
+  accent: string,
+  shellBackgroundOpacity: number,
+): void {
   if (typeof document !== "undefined") {
     document.documentElement.dataset.shell = shellStyle;
+    document.documentElement.dataset.gauge = gaugeStyle;
     document.documentElement.style.setProperty("--accent", accent);
+    document.documentElement.style.setProperty("--shell-bg-opacity", String(shellBackgroundOpacity));
   }
 }
 
@@ -38,7 +46,12 @@ export function loadSettings(): ClientSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      applyAppearance(DEFAULT_SETTINGS.shellStyle, DEFAULT_SETTINGS.accent);
+      applyAppearance(
+        DEFAULT_SETTINGS.shellStyle,
+        DEFAULT_SETTINGS.gaugeStyle,
+        DEFAULT_SETTINGS.accent,
+        DEFAULT_SETTINGS.shellBackgroundOpacity,
+      );
       return DEFAULT_SETTINGS;
     }
     const parsed = JSON.parse(raw) as Partial<ClientSettings>;
@@ -61,6 +74,12 @@ export function loadSettings(): ClientSettings {
       surface = getThemePreset(theme).surface;
     }
     const accent = isSurface(parsed.accent) ? parsed.accent : DEFAULT_SETTINGS.accent;
+    const shellBackgroundOpacity = clampNumber(
+      parsed.shellBackgroundOpacity,
+      0,
+      1,
+      DEFAULT_SETTINGS.shellBackgroundOpacity,
+    );
     const opacity = clampNumber(parsed.opacity, 0, 1, DEFAULT_SETTINGS.opacity);
     const scale = clampNumber(parsed.scale, 0.7, 1.3, DEFAULT_SETTINGS.scale);
     const offsetX = clampNumber(parsed.offsetX, -200, 200, DEFAULT_SETTINGS.offsetX);
@@ -77,6 +96,7 @@ export function loadSettings(): ClientSettings {
       mode,
       surface,
       accent,
+      shellBackgroundOpacity,
       opacity,
       scale,
       offsetX,
@@ -85,16 +105,21 @@ export function loadSettings(): ClientSettings {
       autoHide,
       autoHideDelaySec,
     };
-    applyAppearance(shellStyle, accent);
+    applyAppearance(shellStyle, gaugeStyle, accent, shellBackgroundOpacity);
     return settings;
   } catch {
-    applyAppearance(DEFAULT_SETTINGS.shellStyle, DEFAULT_SETTINGS.accent);
+    applyAppearance(
+      DEFAULT_SETTINGS.shellStyle,
+      DEFAULT_SETTINGS.gaugeStyle,
+      DEFAULT_SETTINGS.accent,
+      DEFAULT_SETTINGS.shellBackgroundOpacity,
+    );
     return DEFAULT_SETTINGS;
   }
 }
 
 export function saveSettings(settings: ClientSettings): void {
-  applyAppearance(settings.shellStyle, settings.accent);
+  applyAppearance(settings.shellStyle, settings.gaugeStyle, settings.accent, settings.shellBackgroundOpacity);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
