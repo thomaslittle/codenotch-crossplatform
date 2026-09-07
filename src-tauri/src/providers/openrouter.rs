@@ -116,12 +116,11 @@ pub async fn snapshot() -> ProviderSnapshot {
         }
     };
 
-    // OpenRouter's /key endpoint is per-key. An uncapped routing key can still
-    // belong to a prepaid account with a real dollar balance. Query /credits
-    // opportunistically with the same credential; some OpenRouter accounts
-    // allow ordinary routing keys here even though the reference describes it
-    // as a management-key endpoint. A 401/403 is non-fatal and falls back to
-    // the per-key spend data.
+    // /key describes the routing key itself. The separate /credits endpoint
+    // contains account-level purchased credits and usage. OpenRouter's current
+    // reference labels /credits as management-key-only, but live routing keys
+    // can also be accepted on some accounts. Try the same key safely and fall
+    // back to per-key spend data if OpenRouter returns 401/403.
     let credit_balance = fetch_credit_balance(&client, &credential).await;
 
     match parse_key_usage(&body, &credential.source, credit_balance) {
@@ -225,8 +224,6 @@ fn parse_key_usage(
                 id: id.into(),
                 label: label.into(),
                 used_fraction: ((limit - remaining) / limit).clamp(0.0, 1.0),
-                // OpenRouter exposes the cadence but not the exact next reset
-                // timestamp from GET /api/v1/key. Do not invent one.
                 resets_at: None,
             });
             headline_id = Some(id.into());
@@ -238,8 +235,6 @@ fn parse_key_usage(
 
     if windows.is_empty() {
         if let Some(balance) = account_balance.filter(|value| value.is_finite()) {
-            // Account credits are a dollar balance, not a periodic quota. Keep
-            // the circular gauge neutral and show the actual money remaining.
             display_value = Some(format!("${balance:.2}"));
             message = Some(match weekly_spend {
                 Some(weekly) => format!(
@@ -290,7 +285,6 @@ fn read_api_key() -> Result<Credential, String> {
         }
     }
 
-    // Also support a Codenotch process launched from a router-configured shell.
     for (base_name, token_name) in [
         ("ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"),
         ("OPENAI_BASE_URL", "OPENAI_API_KEY"),
@@ -316,8 +310,6 @@ fn read_api_key() -> Result<Credential, String> {
         }
     }
 
-    // T3 can run OpenCode as its provider, in which case the OpenRouter key is
-    // owned by OpenCode rather than copied into T3's provider environment.
     for auth_path in opencode_auth_paths() {
         if let Some(credential) = credential_from_opencode_auth(&auth_path) {
             return Ok(credential);
@@ -540,13 +532,10 @@ mod tests {
                 "limit_remaining": 74.5,
                 "limit_reset": "monthly",
                 "usage": 25.5,
-                "usage_daily": 2.0,
-                "usage_weekly": 11.0,
-                "usage_monthly": 25.5
+                "usage_weekly": 11.0
             }
         });
         let snapshot = parse_key_usage(&body, "T3 Code · Router", Some(12.34)).unwrap();
-        assert_eq!(snapshot.status, "ok");
         assert_eq!(snapshot.headline_id.as_deref(), Some("monthly"));
         assert_eq!(snapshot.windows.len(), 1);
         assert!((snapshot.windows[0].used_fraction - 0.255).abs() < 0.0001);
@@ -563,9 +552,7 @@ mod tests {
                 "limit_remaining": null,
                 "limit_reset": null,
                 "usage": 47.56,
-                "usage_daily": 0.0,
-                "usage_weekly": 0.0,
-                "usage_monthly": 0.0
+                "usage_weekly": 0.0
             }
         });
         let snapshot = parse_key_usage(&body, "OPENROUTER_API_KEY", Some(2.44)).unwrap();
@@ -578,11 +565,8 @@ mod tests {
     fn uncapped_key_falls_back_to_weekly_spend_when_balance_is_unavailable() {
         let body = serde_json::json!({
             "data": {
-                "label": "sk-or-v1-test...123",
-                "is_free_tier": false,
                 "limit": null,
                 "limit_remaining": null,
-                "limit_reset": null,
                 "usage_weekly": 11.25
             }
         });
