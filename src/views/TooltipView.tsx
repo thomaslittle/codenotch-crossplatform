@@ -65,6 +65,9 @@ export function TooltipView() {
         </header>
         {snapshot.windows.length ? snapshot.windows.map((window, windowIndex) => {
           const remaining = remainingFraction(window.usedFraction);
+          const resetCopy = snapshot.id === "openrouter" && window.id === "account-credits"
+            ? "No reset"
+            : formatReset(window.resetsAt);
           return (
             <motion.div
               className="limit-block"
@@ -75,7 +78,7 @@ export function TooltipView() {
             >
               <div className="limit-line">
                 <span>{window.label}</span>
-                <span className="reset-copy">{formatReset(window.resetsAt)}</span>
+                <span className="reset-copy">{resetCopy}</span>
               </div>
               <div className="limit-track" aria-hidden="true" style={{ background: "var(--bar-track)" }}>
                 <motion.span
@@ -91,6 +94,9 @@ export function TooltipView() {
           );
         }) : (
           <p className="status-copy">{snapshot.message ?? (snapshot.status === "ok" ? "No usage window is available yet." : snapshot.status)}</p>
+        )}
+        {snapshot.status === "ok" && snapshot.windows.length > 0 && snapshot.message && (
+          <p className="status-copy">{snapshot.message}</p>
         )}
         {snapshot.activity && snapshot.activity.state !== "idle" && (
           <div className={`activity-row state-${snapshot.activity.state}`}>
