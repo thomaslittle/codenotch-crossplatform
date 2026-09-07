@@ -8,18 +8,19 @@
    - neutral track = quota already consumed / unavailable portion
    Do not add traffic-light or provider-specific colors in this stylesheet. */
 
-/* Circular gauges use a bottom-origin meter convention. Classic starts at
-   6 o'clock and grows toward the right; Halo activates its first segment at
-   the same point/direction. This makes "remaining" read like a filling meter
-   instead of a top-origin countdown dial. */
-.provider-ring.gauge-classic .ring-track,
-.provider-ring.gauge-classic .ring-value {
-  transform-origin: 22px 22px;
-  transform: scaleX(-1) rotate(90deg);
+/* Circular gauges use a bottom-origin clockwise meter convention.
+   Classic's SVG circle naturally progresses clockwise from 3 o'clock, so a
+   +90deg rotation moves its origin to 6 o'clock without reversing direction.
+   Halo is authored from 12 o'clock; rotating that gauge 180deg puts its first
+   active tick at 6 o'clock while its positive tick angles continue clockwise.
+   Horizontal/vertical gauge styles are intentionally untouched. */
+.provider-ring.gauge-classic > svg.ring-svg:first-child {
+  transform-origin: 50% 50%;
+  transform: rotate(90deg);
 }
 .provider-ring.gauge-halo > svg.ring-svg:first-child {
-  transform-origin: 22px 22px;
-  transform: scaleX(-1) rotate(180deg);
+  transform-origin: 50% 50%;
+  transform: rotate(180deg);
 }
 
 /* Classic + Halo are already complete visual objects. On Dock they should
@@ -75,6 +76,14 @@ html[data-shell="dock"] .provider-ring.gauge-slim {
 }
 .provider-cell[aria-label*="quota refreshed"] > span[aria-hidden="true"]::after {
   content: "NEW";
+}
+
+/* The edge reset sliver is only useful while the notch is retracted. Motion
+   renders a fully visible shell with `transform: none`; suppress the global
+   sliver there so it cannot masquerade as a provider badge (it previously sat
+   over the center provider, which made Codex look vertically misaligned). */
+.notch-shell[style*="transform: none"] > span[aria-hidden="true"][style*="z-index: 7"] {
+  opacity: 0 !important;
 }
 
 /* Hidden auto-hide notification: same amber event language. The inline
