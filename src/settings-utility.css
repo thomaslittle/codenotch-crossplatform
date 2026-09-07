@@ -73,23 +73,9 @@
    the visible chrome — provider centers and tooltip anchors stay untouched.
    -------------------------------------------------------------------------- */
 
-/* Tab: trim the body and suppress only the trailing curl under Settings. */
-html[data-shell="tab"] .edge-top::before,
-html[data-shell="tab"] .edge-bottom::before {
-  right: var(--utility-slot) !important;
-}
-html[data-shell="tab"] .edge-left::before,
-html[data-shell="tab"] .edge-right::before {
-  bottom: var(--utility-slot) !important;
-}
-html[data-shell="tab"] .edge-top::after,
-html[data-shell="tab"] .edge-bottom::after {
-  clip-path: inset(0 var(--utility-slot) 0 0) !important;
-}
-html[data-shell="tab"] .edge-left::after,
-html[data-shell="tab"] .edge-right::after {
-  clip-path: inset(0 0 var(--utility-slot) 0) !important;
-}
+/* Tab is intentionally excluded. Its original moulded curl already provides a
+   natural utility margin outside the central body; shortening/clipping the Tab
+   pseudo-elements destroys that curl and visibly breaks the trailing edge. */
 
 /* Sharp / Trapezoid / Pill: the silhouette wraps providers only. */
 html[data-shell="sharp"] .edge-top::before,
