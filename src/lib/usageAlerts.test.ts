@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderSnapshot } from "../types";
 import { clearUsageResetAlerts, getUsageResetAlerts, processUsageResetSnapshots } from "./usageAlerts";
 
@@ -29,7 +29,13 @@ function snapshot(usedFraction: number, resetsAt: string): ProviderSnapshot {
   };
 }
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-09-06T12:00:00Z"));
+});
+
+afterEach(() => vi.useRealTimers());
 
 describe("usage reset alerts", () => {
   it("does not alert on the first snapshot", () => {
@@ -65,16 +71,26 @@ describe("usage reset alerts", () => {
     expect(getUsageResetAlerts()).toHaveLength(1);
   });
 
-  it("keeps an unread reset badge while refreshed quota is still meaningfully available", () => {
+  it("keeps a recent reset notification while refreshed quota is still meaningfully available", () => {
     processUsageResetSnapshots([snapshot(0.82, "2026-09-06T18:00:00Z")]);
     processUsageResetSnapshots([snapshot(0.03, "2026-09-06T23:00:00Z")]);
     expect(processUsageResetSnapshots([snapshot(0.50, "2026-09-06T23:00:00Z")])).toHaveLength(1);
   });
 
-  it("expires an unread reset badge once the refreshed quota has been consumed again", () => {
+  it("expires a reset notification once the refreshed quota has been consumed again", () => {
     processUsageResetSnapshots([snapshot(0.82, "2026-09-06T18:00:00Z")]);
     processUsageResetSnapshots([snapshot(0.03, "2026-09-06T23:00:00Z")]);
     expect(processUsageResetSnapshots([snapshot(0.80, "2026-09-06T23:00:00Z")])).toEqual([]);
+    expect(getUsageResetAlerts()).toEqual([]);
+  });
+
+  it("expires an unacknowledged reset notification after fifteen minutes", () => {
+    processUsageResetSnapshots([snapshot(0.82, "2026-09-06T18:00:00Z")]);
+    processUsageResetSnapshots([snapshot(0.03, "2026-09-06T23:00:00Z")]);
+    expect(getUsageResetAlerts()).toHaveLength(1);
+
+    vi.advanceTimersByTime(15 * 60_000 + 1);
+
     expect(getUsageResetAlerts()).toEqual([]);
   });
 
