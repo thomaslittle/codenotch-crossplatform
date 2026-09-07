@@ -7,6 +7,7 @@ import "./gauge-shells.css";
 import "./docks.css";
 import "./settings.css";
 import "./shell-layout.css";
+import "./settings-utility.css";
 import { ContextMenuView } from "./views/ContextMenuView";
 import { NotchView } from "./views/NotchView";
 import { SettingsView } from "./views/SettingsView";
