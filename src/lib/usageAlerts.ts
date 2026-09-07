@@ -3,6 +3,7 @@ import type { ProviderSnapshot } from "../types";
 const BASELINE_KEY = "codenotch-crossplatform.usage-reset-baseline.v1";
 const ALERTS_KEY = "codenotch-crossplatform.usage-reset-alerts.v1";
 const MIN_DROP = 0.05;
+const ALERT_TTL_MS = 15 * 60_000;
 
 type BaselineWindow = {
   usedFraction: number;
@@ -47,6 +48,11 @@ function resetAdvanced(previous: string | null, current: string | null): current
   return Number.isFinite(previousMs) && Number.isFinite(currentMs) && currentMs > previousMs;
 }
 
+function isFreshAlert(alert: UsageResetAlert, nowMs = Date.now()): boolean {
+  const detectedMs = Date.parse(alert.detectedAt);
+  return Number.isFinite(detectedMs) && detectedMs > nowMs - ALERT_TTL_MS;
+}
+
 export function getUsageResetAlerts(): UsageResetAlert[] {
   const value = readJson<unknown>(ALERTS_KEY, []);
   if (!Array.isArray(value)) return [];
@@ -61,7 +67,8 @@ export function getUsageResetAlerts(): UsageResetAlert[] {
       && typeof alert.resetAt === "string"
       && typeof alert.detectedAt === "string"
       && typeof alert.previousUsedFraction === "number"
-      && typeof alert.currentUsedFraction === "number";
+      && typeof alert.currentUsedFraction === "number"
+      && isFreshAlert(alert as UsageResetAlert);
   });
 }
 
@@ -78,10 +85,11 @@ export function clearUsageResetAlerts(providerId?: string): UsageResetAlert[] {
  * A reset requires both a later reset timestamp and a material usage drop,
  * so stale-data repair or tiny accounting corrections do not notify.
  *
- * Unread reset alerts are also retired automatically once the newly refreshed
- * allowance has been consumed back to within MIN_DROP of the pre-reset usage
- * level. That keeps the badge meaningful: it means extra quota is still
- * available, not merely that a reset happened sometime in the past.
+ * Reset notifications are transient events, not long-lived quota state. They
+ * expire after 15 minutes even when unacknowledged, and retire sooner if the
+ * refreshed allowance is consumed back to within MIN_DROP of its pre-reset
+ * usage level. This prevents an old reset badge from sitting on an exhausted
+ * provider and looking like a current health/quota indicator.
  */
 export function processUsageResetSnapshots(snapshots: ProviderSnapshot[]): UsageResetAlert[] {
   const baseline = readJson<Baseline>(BASELINE_KEY, {});
@@ -130,6 +138,7 @@ export function processUsageResetSnapshots(snapshots: ProviderSnapshot[]): Usage
   }
 
   alerts = alerts.filter((alert) => {
+    if (!isFreshAlert(alert)) return false;
     const usedFraction = currentUsage.get(baselineKey(alert.providerId, alert.windowId));
     if (usedFraction == null) return true;
     return usedFraction < alert.previousUsedFraction - MIN_DROP;
