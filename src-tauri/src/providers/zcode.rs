@@ -166,9 +166,6 @@ async fn fetch_quota(
                 .unwrap_or("ZCode quota service rejected the request")
                 .to_owned();
             if looks_like_auth_error(&message) {
-                // ZCode has used both raw-token and Bearer authorization for
-                // this monitor endpoint. A 200 JSON auth error from the first
-                // form must not prevent us trying the other form.
                 last_auth_error = Some(message);
                 continue;
             }
@@ -359,10 +356,6 @@ fn read_credential() -> Result<Credential, String> {
         }
     }
 
-    // ZCode's current provider configuration is authoritative. In API-key
-    // mode an old credentials.json from a previous account can remain on disk;
-    // preferring it caused exactly the misleading "token expired" state when
-    // the active provider was a newly entered API key.
     for path in zcode_config_paths() {
         let text = match fs::read_to_string(&path) {
             Ok(text) => text,
@@ -382,15 +375,12 @@ fn read_credential() -> Result<Credential, String> {
         }
         if has_enabled_general_api_key(&root) {
             return Err(
-                "ZCode is connected with a general Z.ai/BigModel API key, not a Coding Plan key. General `/api/paas/v4` balance is separate from ZCode Coding Plan quota. Use the Coding Plan endpoint `/api/coding/paas/v4` if this key belongs to a Coding Plan."
+                "ZCode is connected with a general Z.ai/BigModel API key, not an active Coding Plan provider. General API/free usage is separate from Coding Plan quota."
                     .into(),
             );
         }
     }
 
-    // Account-bound login is a fallback when ZCode is not actively configured
-    // for API-key mode. Values are decrypted locally with ZCode's own
-    // same-device credential scheme; nothing is copied or persisted by us.
     for path in zcode_credentials_paths() {
         let text = match fs::read_to_string(&path) {
             Ok(text) => text,
@@ -402,7 +392,7 @@ fn read_credential() -> Result<Credential, String> {
     }
 
     Err(
-        "ZCode Coding Plan login or API key was not found. Codenotch reads the active Coding Plan API-key provider first, then the existing same-device ZCode login."
+        "ZCode Coding Plan login or API key was not found. Codenotch checks active ZCode provider entries, then the existing same-device ZCode login."
             .into(),
     )
 }
@@ -505,8 +495,6 @@ fn credential_from_credentials_file(text: &str, path: &Path) -> Option<Credentia
         ZAI_HOST.into()
     };
 
-    // The monitor endpoint primarily consumes the Z.ai OAuth access token.
-    // zcodejwttoken is retained as a fallback for older/start-plan sessions.
     let key = ["oauth:zai:access_token", "zcodejwttoken"]
         .iter()
         .find_map(|name| field(name))
@@ -580,31 +568,23 @@ fn decrypt_credential_with_secret(envelope: &str, secret: &str) -> Option<String
 fn find_coding_plan_key(root: &Value) -> Option<(String, String)> {
     for section in ["provider", "providers"] {
         if let Some(entries) = root.get(section).and_then(Value::as_object) {
-            let mut values = entries.values().collect::<Vec<_>>();
-            values.sort_by_key(|entry| entry.get("enabled").and_then(Value::as_bool) != Some(true));
-            if let Some(found) = values
-                .into_iter()
+            if let Some(found) = entries
+                .values()
                 .filter_map(Value::as_object)
+                .filter(|entry| entry.get("enabled").and_then(Value::as_bool) != Some(false))
                 .find_map(coding_plan_key_from_object)
             {
                 return Some(found);
             }
         }
     }
-
-    fn visit(value: &Value) -> Option<(String, String)> {
-        match value {
-            Value::Object(object) => {
-                coding_plan_key_from_object(object).or_else(|| object.values().find_map(visit))
-            }
-            Value::Array(values) => values.iter().find_map(visit),
-            _ => None,
-        }
-    }
-    visit(root)
+    None
 }
 
 fn coding_plan_key_from_object(object: &Map<String, Value>) -> Option<(String, String)> {
+    if object.get("enabled").and_then(Value::as_bool) == Some(false) {
+        return None;
+    }
     let connection = object
         .get("options")
         .and_then(Value::as_object)
@@ -668,8 +648,7 @@ fn api_key_from_connection(connection: &Map<String, Value>) -> Option<String> {
 
 fn is_coding_plan_url(value: &str) -> bool {
     let lower = value.trim().to_ascii_lowercase();
-    (lower.contains(ZAI_HOST) || lower.contains(BIGMODEL_API_HOST))
-        && (lower.contains("/coding/") || lower.contains("/anthropic"))
+    (lower.contains(ZAI_HOST) || lower.contains(BIGMODEL_API_HOST)) && lower.contains("/coding/")
 }
 
 fn canonical_host(value: &str) -> Option<String> {
@@ -714,9 +693,9 @@ mod tests {
             "data": {
                 "level": "pro",
                 "limits": [
-                    {"type":"TIME_LIMIT","unit":5,"number":1,"usage":1000,"currentValue":82,"remaining":918,"percentage":8,"nextResetTime":1781661646979},
-                    {"type":"TOKENS_LIMIT","unit":3,"number":5,"percentage":37,"nextResetTime":1780602733798},
-                    {"type":"TOKENS_LIMIT","unit":6,"number":1,"percentage":25,"nextResetTime":1780970446997}
+                    {"type":"TIME_LIMIT","unit":5,"number":1,"usage":1000,"currentValue":82,"remaining":918,"percentage":8,"nextResetTime":1781661646979_i64},
+                    {"type":"TOKENS_LIMIT","unit":3,"number":5,"percentage":37,"nextResetTime":1780602733798_i64},
+                    {"type":"TOKENS_LIMIT","unit":6,"number":1,"percentage":25,"nextResetTime":1780970446997_i64}
                 ]
             }
         });
@@ -734,8 +713,8 @@ mod tests {
             "data": {
                 "level": "lite",
                 "limits": [
-                    {"type":"CREDIT_LIMIT","unit":3,"number":5,"usage":2000,"currentValue":1653,"remaining":346,"percentage":82,"nextResetTime":1787176502893},
-                    {"type":"CREDIT_LIMIT","unit":6,"number":1,"usage":10000,"currentValue":4562,"remaining":5437,"percentage":45,"nextResetTime":1787607163997}
+                    {"type":"CREDIT_LIMIT","unit":3,"number":5,"usage":2000,"currentValue":1653,"remaining":346,"percentage":82,"nextResetTime":1787176502893_i64},
+                    {"type":"CREDIT_LIMIT","unit":6,"number":1,"usage":10000,"currentValue":4562,"remaining":5437,"percentage":45,"nextResetTime":1787607163997_i64}
                 ]
             }
         });
@@ -746,22 +725,21 @@ mod tests {
     }
 
     #[test]
-    fn discovers_coding_plan_key_and_distinguishes_general_api_key() {
-        let coding = serde_json::json!({
+    fn ignores_disabled_provider_entries() {
+        let root = serde_json::json!({
             "provider": {
-                "zai": {"enabled": true, "options": {"apiKey":"Bearer zai-key", "baseURL":"https://api.z.ai/api/coding/paas/v4"}}
+                "builtin:bigmodel": {"enabled": false, "options": {"apiKey":"disabled", "baseURL":"https://open.bigmodel.cn/api/anthropic"}},
+                "builtin:bigmodel-coding-plan": {"enabled": false, "options": {"apiKey":"disabled-plan", "baseURL":"https://open.bigmodel.cn/api/coding/paas/v4"}},
+                "active": {"enabled": true, "options": {"apiKey":"active", "baseURL":"https://api.z.ai/api/coding/paas/v4"}}
             }
         });
-        assert_eq!(find_coding_plan_key(&coding), Some((ZAI_HOST.into(), "zai-key".into())));
-        assert!(!has_enabled_general_api_key(&coding));
+        assert_eq!(find_coding_plan_key(&root), Some((ZAI_HOST.into(), "active".into())));
+    }
 
-        let general = serde_json::json!({
-            "provider": {
-                "zai": {"enabled": true, "options": {"apiKey":"general-key", "baseURL":"https://api.z.ai/api/paas/v4"}}
-            }
-        });
-        assert!(find_coding_plan_key(&general).is_none());
-        assert!(has_enabled_general_api_key(&general));
+    #[test]
+    fn anthropic_endpoint_is_not_misclassified_as_coding_plan() {
+        assert!(!is_coding_plan_url("https://open.bigmodel.cn/api/anthropic"));
+        assert!(is_coding_plan_url("https://api.z.ai/api/coding/paas/v4"));
     }
 
     #[test]
