@@ -7,6 +7,7 @@ mod opencode;
 mod openrouter;
 mod provider_refine;
 mod zcode;
+mod zcode_debug;
 
 use crate::model::{ActivitySummary, ProviderSnapshot};
 use std::collections::HashMap;
@@ -57,6 +58,7 @@ impl Default for ProviderStore {
 
 impl ProviderStore {
     pub async fn snapshots(&self) -> Vec<ProviderSnapshot> {
+        zcode_debug::emit_if_enabled();
         let (claude, cursor, codex, antigravity, opencode, openrouter, grok, zcode) = tokio::join!(
             self.claude_snapshot(),
             cursor::snapshot(),
