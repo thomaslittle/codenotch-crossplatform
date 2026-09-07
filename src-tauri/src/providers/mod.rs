@@ -5,6 +5,7 @@ mod cursor;
 mod grok;
 mod opencode;
 mod openrouter;
+mod zcode;
 
 use crate::model::{ActivitySummary, ProviderSnapshot};
 use std::collections::HashMap;
@@ -55,7 +56,7 @@ impl Default for ProviderStore {
 
 impl ProviderStore {
     pub async fn snapshots(&self) -> Vec<ProviderSnapshot> {
-        let (claude, cursor, codex, antigravity, opencode, openrouter, grok) = tokio::join!(
+        let (claude, cursor, codex, antigravity, opencode, openrouter, grok, zcode) = tokio::join!(
             self.claude_snapshot(),
             cursor::snapshot(),
             codex::snapshot(),
@@ -63,8 +64,9 @@ impl ProviderStore {
             opencode::snapshot(),
             openrouter::snapshot(),
             grok::snapshot(),
+            zcode::snapshot(),
         );
-        vec![claude, cursor, codex, antigravity, opencode, openrouter, grok]
+        vec![claude, cursor, codex, antigravity, opencode, openrouter, grok, zcode]
             .into_iter()
             .map(|snapshot| self.with_stale_fallback(snapshot))
             .collect()
@@ -75,11 +77,6 @@ impl ProviderStore {
         let (should_fetch, backing_off) = {
             let mut gate = self.claude_gate.lock().expect("claude refresh gate poisoned");
             if now >= gate.next_attempt {
-                // Claim the next network slot before awaiting so overlapping
-                // frontend refreshes cannot stampede the OAuth usage endpoint.
-                // Community testing of Claude's private usage endpoint shows
-                // the Claude-Code user-agent path is reliable at ~3 minute
-                // intervals, so keep our live reads at or below that cadence.
                 gate.next_attempt = now + CLAUDE_MIN_REFRESH;
                 (true, gate.rate_limited)
             } else {
@@ -110,8 +107,6 @@ impl ProviderStore {
                 gate.rate_limited = false;
                 gate.next_attempt = SystemTime::now() + CLAUDE_MIN_REFRESH;
             } else {
-                // Authentication/transport errors should not hot-loop either,
-                // but they can recover sooner than an explicit 429 bucket.
                 gate.next_attempt = SystemTime::now() + Duration::from_secs(60);
             }
         }
@@ -133,10 +128,6 @@ impl ProviderStore {
             let mut stale = previous.clone();
             stale.status = "stale".into();
             stale.message = snapshot.message;
-            // Activity is ephemeral local state, not part of the durable usage
-            // reading. Never carry a cached `working` spinner forward just
-            // because the live quota refresh failed. Claude's local activity
-            // remains available even when its usage endpoint is unavailable.
             stale.activity = if stale.id == "claude" {
                 claude_activity()
             } else {
@@ -162,9 +153,6 @@ fn claude_config_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(".claude"))
 }
 
-/// Lightweight local activity signal used to update the spinner and trigger a
-/// usage refresh at the beginning/end of a Claude turn without polling the
-/// Anthropic usage endpoint every few seconds.
 pub(crate) fn claude_activity() -> Option<ActivitySummary> {
     let projects = claude_config_dir().join("projects");
     let newest = WalkDir::new(projects).max_depth(5).into_iter().filter_map(Result::ok)
