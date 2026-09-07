@@ -27,7 +27,7 @@ class MemoryStorage implements Storage {
   }
 
   setItem(key: string, value: string): void {
-    this.values.set(key, value);
+    this.values.set(key, JSON.stringify ? value : value);
   }
 }
 
@@ -47,6 +47,7 @@ describe("settings", () => {
       shellStyle: DEFAULT_SETTINGS.shellStyle,
       gaugeStyle: DEFAULT_SETTINGS.gaugeStyle,
       accent: DEFAULT_SETTINGS.accent,
+      shellBackgroundOpacity: DEFAULT_SETTINGS.shellBackgroundOpacity,
       autoHide: DEFAULT_SETTINGS.autoHide,
       autoHideDelaySec: DEFAULT_SETTINGS.autoHideDelaySec,
     });
@@ -69,6 +70,7 @@ describe("settings", () => {
       shellStyle: "tab",
       gaugeStyle: "classic",
       accent: DEFAULT_SETTINGS.accent,
+      shellBackgroundOpacity: DEFAULT_SETTINGS.shellBackgroundOpacity,
       autoHide: false,
       autoHideDelaySec: 5,
     });
@@ -80,6 +82,20 @@ describe("settings", () => {
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ accent: "hotpink" }));
     expect(loadSettings().accent).toBe(DEFAULT_SETTINGS.accent);
+  });
+
+  it("clamps shell background opacity and fills its legacy default", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellBackgroundOpacity: -1 }));
+    expect(loadSettings().shellBackgroundOpacity).toBe(0);
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellBackgroundOpacity: 2 }));
+    expect(loadSettings().shellBackgroundOpacity).toBe(1);
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ shellBackgroundOpacity: 0.46 }));
+    expect(loadSettings().shellBackgroundOpacity).toBe(0.46);
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ edge: "top" }));
+    expect(loadSettings().shellBackgroundOpacity).toBe(DEFAULT_SETTINGS.shellBackgroundOpacity);
   });
 
   it("restores legacy named theme surfaces", () => {
