@@ -65,6 +65,19 @@ describe("usage reset alerts", () => {
     expect(getUsageResetAlerts()).toHaveLength(1);
   });
 
+  it("keeps an unread reset badge while refreshed quota is still meaningfully available", () => {
+    processUsageResetSnapshots([snapshot(0.82, "2026-09-06T18:00:00Z")]);
+    processUsageResetSnapshots([snapshot(0.03, "2026-09-06T23:00:00Z")]);
+    expect(processUsageResetSnapshots([snapshot(0.50, "2026-09-06T23:00:00Z")])).toHaveLength(1);
+  });
+
+  it("expires an unread reset badge once the refreshed quota has been consumed again", () => {
+    processUsageResetSnapshots([snapshot(0.82, "2026-09-06T18:00:00Z")]);
+    processUsageResetSnapshots([snapshot(0.03, "2026-09-06T23:00:00Z")]);
+    expect(processUsageResetSnapshots([snapshot(0.80, "2026-09-06T23:00:00Z")])).toEqual([]);
+    expect(getUsageResetAlerts()).toEqual([]);
+  });
+
   it("clears alerts for one provider", () => {
     processUsageResetSnapshots([snapshot(0.82, "2026-09-06T18:00:00Z")]);
     processUsageResetSnapshots([snapshot(0.03, "2026-09-06T23:00:00Z")]);
