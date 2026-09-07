@@ -237,6 +237,16 @@ fn provider_center(index: usize, edge: Edge, scale: f64, compact: bool, shell: S
     (m.outer + m.start + index as f64 * (cell + gap) + cell / 2.0) * scale
 }
 
+/// Center the actual provider group, not the native window. The window also
+/// carries the trailing Settings utility lane, which must never influence the
+/// visual center of the provider dock/notch.
+fn provider_group_center(count: usize, edge: Edge, scale: f64, compact: bool, shell: ShellStyle) -> f64 {
+    let last = count.max(1) - 1;
+    (provider_center(0, edge, scale, compact, shell)
+        + provider_center(last, edge, scale, compact, shell))
+        / 2.0
+}
+
 pub fn place_notch(
     app: &AppHandle,
     edge: Edge,
@@ -254,22 +264,23 @@ pub fn place_notch(
     let metrics = layout_metrics(compact, shell);
     let side_depth = metrics.side_depth * s;
     let horizontal_depth = metrics.horizontal_depth * s;
+    let group_center = provider_group_center(count, edge, s, compact, shell);
     let (w, h, mut x, mut y) = match edge {
         Edge::Right => {
             let h = side_length(count, s, compact, shell).min(mh - 32.0);
-            (side_depth, h, mx + mw - side_depth, my + (mh - h) / 2.0)
+            (side_depth, h, mx + mw - side_depth, my + mh / 2.0 - group_center)
         }
         Edge::Left => {
             let h = side_length(count, s, compact, shell).min(mh - 32.0);
-            (side_depth, h, mx, my + (mh - h) / 2.0)
+            (side_depth, h, mx, my + mh / 2.0 - group_center)
         }
         Edge::Top => {
             let w = horizontal_length(count, s, compact, shell).min(mw - 32.0);
-            (w, horizontal_depth, mx + (mw - w) / 2.0, my)
+            (w, horizontal_depth, mx + mw / 2.0 - group_center, my)
         }
         Edge::Bottom => {
             let w = horizontal_length(count, s, compact, shell).min(mw - 32.0);
-            (w, horizontal_depth, mx + (mw - w) / 2.0, my + mh - horizontal_depth)
+            (w, horizontal_depth, mx + mw / 2.0 - group_center, my + mh - horizontal_depth)
         }
     };
     let margin_x = 80.0_f64.min(w);
@@ -572,7 +583,7 @@ pub fn fit_settings(app: &AppHandle, height: f64) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{horizontal_length, hotspot_rect, layout_metrics, provider_center, side_length, Edge, ShellStyle};
+    use super::{horizontal_length, hotspot_rect, layout_metrics, provider_center, provider_group_center, side_length, Edge, ShellStyle};
 
     #[test]
     fn hotspot_hugs_right_edge() {
@@ -599,6 +610,12 @@ mod tests {
         assert_eq!(horizontal_length(4, 1.0, false, ShellStyle::Dock), 310.0);
         assert_eq!(provider_center(0, Edge::Bottom, 1.0, false, ShellStyle::Dock), 40.0);
         assert_eq!(provider_center(3, Edge::Bottom, 1.0, false, ShellStyle::Dock), 226.0);
+    }
+
+    #[test]
+    fn provider_group_center_ignores_settings_utility_reserve() {
+        assert_eq!(provider_group_center(4, Edge::Bottom, 1.0, false, ShellStyle::Dock), 133.0);
+        assert_eq!(horizontal_length(4, 1.0, false, ShellStyle::Dock) / 2.0, 155.0);
     }
 
     #[test]
