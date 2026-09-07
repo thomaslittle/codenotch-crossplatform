@@ -39,6 +39,7 @@ function applyAppearance(
     document.documentElement.dataset.gauge = gaugeStyle;
     document.documentElement.style.setProperty("--accent", accent);
     document.documentElement.style.setProperty("--shell-bg-opacity", String(shellBackgroundOpacity));
+    document.documentElement.style.setProperty("--shell-bg-percent", `${Math.round(shellBackgroundOpacity * 100)}%`);
   }
 }
 
