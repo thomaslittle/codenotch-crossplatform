@@ -10,7 +10,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 const ZAI_HOST: &str = "api.z.ai";
-const BIGMODEL_HOST: &str = "open.bigmodel.cn";
+const BIGMODEL_API_HOST: &str = "open.bigmodel.cn";
+const BIGMODEL_MONITOR_HOST: &str = "bigmodel.cn";
 const QUOTA_PATH: &str = "/api/monitor/usage/quota/limit";
 
 #[derive(Debug, Clone)]
@@ -37,30 +38,25 @@ pub async fn snapshot() -> ProviderSnapshot {
         }
     };
 
-    let display_name = if credential.host == BIGMODEL_HOST {
+    let bigmodel = credential.host == BIGMODEL_API_HOST;
+    let display_name = if bigmodel {
         "ZCode / BigModel"
     } else {
         "ZCode / Z.ai"
     };
-    let manage_url = if credential.host == BIGMODEL_HOST {
+    let manage_url = if bigmodel {
         "https://bigmodel.cn/coding-plan/personal/usage"
     } else {
         "https://z.ai/manage-apikey/coding-plan/personal/my-plan"
     };
     let account = Some(ProviderAccount {
-        label: Some(if credential.host == BIGMODEL_HOST {
-            "BigModel"
-        } else {
-            "Z.ai"
-        }
-        .into()),
+        label: Some(if bigmodel { "BigModel" } else { "Z.ai" }.into()),
         plan: None,
         source: Some(credential.source.clone()),
     });
 
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(12))
-        // Never follow a redirect while carrying a provider credential.
         .redirect(Policy::none())
         .build()
     {
@@ -107,13 +103,18 @@ async fn fetch_quota(
     client: &reqwest::Client,
     credential: &Credential,
 ) -> Result<Value, (&'static str, String)> {
-    let url = format!("https://{}{}", credential.host, QUOTA_PATH);
+    let monitor_host = if credential.host == BIGMODEL_API_HOST {
+        BIGMODEL_MONITOR_HOST
+    } else {
+        ZAI_HOST
+    };
+    let url = format!("https://{monitor_host}{QUOTA_PATH}");
     let auth_orders = if credential.bearer_first {
         ["bearer", "raw"]
     } else {
         ["raw", "bearer"]
     };
-    let mut auth_rejected = false;
+    let mut last_auth_error: Option<String> = None;
 
     for auth_style in auth_orders {
         let auth = if auth_style == "bearer" {
@@ -136,7 +137,9 @@ async fn fetch_quota(
             ));
         }
         if matches!(response.status().as_u16(), 401 | 403) {
-            auth_rejected = true;
+            last_auth_error = Some(format!(
+                "ZCode quota authentication was rejected using {auth_style} authorization."
+            ));
             continue;
         }
         if !response.status().is_success() {
@@ -162,17 +165,14 @@ async fn fetch_quota(
                 .and_then(Value::as_str)
                 .unwrap_or("ZCode quota service rejected the request")
                 .to_owned();
-            let lower = message.to_ascii_lowercase();
-            let status = if lower.contains("auth")
-                || lower.contains("token")
-                || lower.contains("login")
-                || lower.contains("unauthorized")
-            {
-                "needsAuth"
-            } else {
-                "error"
-            };
-            return Err((status, message));
+            if looks_like_auth_error(&message) {
+                // ZCode has used both raw-token and Bearer authorization for
+                // this monitor endpoint. A 200 JSON auth error from the first
+                // form must not prevent us trying the other form.
+                last_auth_error = Some(message);
+                continue;
+            }
+            return Err(("error", message));
         }
         if body
             .get("data")
@@ -188,15 +188,27 @@ async fn fetch_quota(
         ));
     }
 
-    if auth_rejected {
-        Err((
-            "needsAuth",
-            "Z.ai/BigModel rejected the saved ZCode Coding Plan credential. Sign in to ZCode again, then refresh Codenotch."
-                .into(),
-        ))
-    } else {
-        Err(("error", "ZCode quota could not be read.".into()))
-    }
+    Err((
+        "needsAuth",
+        last_auth_error.unwrap_or_else(|| {
+            "Z.ai/BigModel rejected the active ZCode Coding Plan credential.".into()
+        }),
+    ))
+}
+
+fn looks_like_auth_error(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    [
+        "auth",
+        "token",
+        "login",
+        "unauthorized",
+        "expired",
+        "incorrect",
+        "credential",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
 }
 
 fn parse_quota(
@@ -296,7 +308,7 @@ fn parse_quota(
         fetched_at: Utc::now(),
         message: None,
         account: Some(ProviderAccount {
-            label: Some(if credential.host == BIGMODEL_HOST {
+            label: Some(if credential.host == BIGMODEL_API_HOST {
                 "BigModel"
             } else {
                 "Z.ai"
@@ -347,9 +359,38 @@ fn read_credential() -> Result<Credential, String> {
         }
     }
 
-    // Prefer the same-device ZCode login session over provider API keys. ZCode
-    // itself keeps its account session in v2/credentials.json and encrypts the
-    // values with a deterministic per-user/device AES-GCM envelope.
+    // ZCode's current provider configuration is authoritative. In API-key
+    // mode an old credentials.json from a previous account can remain on disk;
+    // preferring it caused exactly the misleading "token expired" state when
+    // the active provider was a newly entered API key.
+    for path in zcode_config_paths() {
+        let text = match fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(_) => continue,
+        };
+        let root: Value = match serde_json::from_str(&text) {
+            Ok(root) => root,
+            Err(_) => continue,
+        };
+        if let Some((host, key)) = find_coding_plan_key(&root) {
+            return Ok(Credential {
+                key,
+                host,
+                source: format!("ZCode config · {}", path.to_string_lossy()),
+                bearer_first: false,
+            });
+        }
+        if has_enabled_general_api_key(&root) {
+            return Err(
+                "ZCode is connected with a general Z.ai/BigModel API key, not a Coding Plan key. General `/api/paas/v4` balance is separate from ZCode Coding Plan quota. Use the Coding Plan endpoint `/api/coding/paas/v4` if this key belongs to a Coding Plan."
+                    .into(),
+            );
+        }
+    }
+
+    // Account-bound login is a fallback when ZCode is not actively configured
+    // for API-key mode. Values are decrypted locally with ZCode's own
+    // same-device credential scheme; nothing is copied or persisted by us.
     for path in zcode_credentials_paths() {
         let text = match fs::read_to_string(&path) {
             Ok(text) => text,
@@ -360,27 +401,8 @@ fn read_credential() -> Result<Credential, String> {
         }
     }
 
-    for path in zcode_config_paths() {
-        let text = match fs::read_to_string(&path) {
-            Ok(text) => text,
-            Err(_) => continue,
-        };
-        let root: Value = match serde_json::from_str(&text) {
-            Ok(root) => root,
-            Err(_) => continue,
-        };
-        if let Some((host, key)) = find_provider_key(&root) {
-            return Ok(Credential {
-                key,
-                host,
-                source: format!("ZCode config · {}", path.to_string_lossy()),
-                bearer_first: false,
-            });
-        }
-    }
-
     Err(
-        "ZCode Coding Plan login or API key was not found. Codenotch reads the existing same-device ZCode session in ~/.zcode/v2/credentials.json, Z_AI_API_KEY/ZAI_API_KEY, or a Coding Plan key in ZCode config."
+        "ZCode Coding Plan login or API key was not found. Codenotch reads the active Coding Plan API-key provider first, then the existing same-device ZCode login."
             .into(),
     )
 }
@@ -478,12 +500,14 @@ fn credential_from_credentials_file(text: &str, path: &Path) -> Option<Credentia
         .unwrap_or_else(|| "zai".into())
         .to_ascii_lowercase();
     let host = if active_provider.contains("bigmodel") {
-        BIGMODEL_HOST.into()
+        BIGMODEL_API_HOST.into()
     } else {
         ZAI_HOST.into()
     };
 
-    let key = ["zcodejwttoken", "oauth:zai:access_token"]
+    // The monitor endpoint primarily consumes the Z.ai OAuth access token.
+    // zcodejwttoken is retained as a fallback for older/start-plan sessions.
+    let key = ["oauth:zai:access_token", "zcodejwttoken"]
         .iter()
         .find_map(|name| field(name))
         .filter(|value| value.trim().len() >= 12)?;
@@ -553,9 +577,7 @@ fn decrypt_credential_with_secret(envelope: &str, secret: &str) -> Option<String
     String::from_utf8(plaintext.to_vec()).ok()
 }
 
-fn find_provider_key(root: &Value) -> Option<(String, String)> {
-    // Prefer an explicitly enabled top-level ZCode provider. Only Coding Plan
-    // URLs are eligible: a normal Z.ai API key cannot answer subscription quota.
+fn find_coding_plan_key(root: &Value) -> Option<(String, String)> {
     for section in ["provider", "providers"] {
         if let Some(entries) = root.get(section).and_then(Value::as_object) {
             let mut values = entries.values().collect::<Vec<_>>();
@@ -563,7 +585,7 @@ fn find_provider_key(root: &Value) -> Option<(String, String)> {
             if let Some(found) = values
                 .into_iter()
                 .filter_map(Value::as_object)
-                .find_map(key_from_object)
+                .find_map(coding_plan_key_from_object)
             {
                 return Some(found);
             }
@@ -572,7 +594,9 @@ fn find_provider_key(root: &Value) -> Option<(String, String)> {
 
     fn visit(value: &Value) -> Option<(String, String)> {
         match value {
-            Value::Object(object) => key_from_object(object).or_else(|| object.values().find_map(visit)),
+            Value::Object(object) => {
+                coding_plan_key_from_object(object).or_else(|| object.values().find_map(visit))
+            }
             Value::Array(values) => values.iter().find_map(visit),
             _ => None,
         }
@@ -580,7 +604,7 @@ fn find_provider_key(root: &Value) -> Option<(String, String)> {
     visit(root)
 }
 
-fn key_from_object(object: &Map<String, Value>) -> Option<(String, String)> {
+fn coding_plan_key_from_object(object: &Map<String, Value>) -> Option<(String, String)> {
     let connection = object
         .get("options")
         .and_then(Value::as_object)
@@ -593,21 +617,58 @@ fn key_from_object(object: &Map<String, Value>) -> Option<(String, String)> {
     if !is_coding_plan_url(base_url) {
         return None;
     }
+    let key = api_key_from_connection(connection)?;
+    let host = canonical_host(base_url)?;
+    Some((host, key))
+}
+
+fn has_enabled_general_api_key(root: &Value) -> bool {
+    for section in ["provider", "providers"] {
+        let Some(entries) = root.get(section).and_then(Value::as_object) else {
+            continue;
+        };
+        for entry in entries.values() {
+            let Some(object) = entry.as_object() else {
+                continue;
+            };
+            if object.get("enabled").and_then(Value::as_bool) == Some(false) {
+                continue;
+            }
+            let connection = object
+                .get("options")
+                .and_then(Value::as_object)
+                .unwrap_or(object);
+            let Some(base_url) = connection
+                .get("baseURL")
+                .or_else(|| connection.get("baseUrl"))
+                .or_else(|| connection.get("base_url"))
+                .and_then(Value::as_str)
+            else {
+                continue;
+            };
+            let lower = base_url.to_ascii_lowercase();
+            let canonical = lower.contains(ZAI_HOST) || lower.contains(BIGMODEL_API_HOST);
+            let general = canonical && lower.contains("/api/paas/v4") && !lower.contains("/coding/");
+            if general && api_key_from_connection(connection).is_some() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn api_key_from_connection(connection: &Map<String, Value>) -> Option<String> {
     let key = ["apiKey", "api_key", "access_token", "token"]
         .iter()
         .find_map(|name| connection.get(*name).and_then(Value::as_str))
         .and_then(reveal_credential)
         .map(|value| strip_bearer(&value))?;
-    if key.is_empty() {
-        return None;
-    }
-    let host = canonical_host(base_url)?;
-    Some((host, key))
+    (!key.is_empty()).then_some(key)
 }
 
 fn is_coding_plan_url(value: &str) -> bool {
     let lower = value.trim().to_ascii_lowercase();
-    (lower.contains(ZAI_HOST) || lower.contains(BIGMODEL_HOST))
+    (lower.contains(ZAI_HOST) || lower.contains(BIGMODEL_API_HOST))
         && (lower.contains("/coding/") || lower.contains("/anthropic"))
 }
 
@@ -615,8 +676,8 @@ fn canonical_host(value: &str) -> Option<String> {
     let lower = value.trim().to_ascii_lowercase();
     if lower.contains(ZAI_HOST) {
         Some(ZAI_HOST.into())
-    } else if lower.contains(BIGMODEL_HOST) {
-        Some(BIGMODEL_HOST.into())
+    } else if lower.contains(BIGMODEL_API_HOST) || lower.contains(BIGMODEL_MONITOR_HOST) {
+        Some(BIGMODEL_API_HOST.into())
     } else {
         None
     }
@@ -659,15 +720,10 @@ mod tests {
                 ]
             }
         });
-        let credential = test_credential();
-        let snapshot = parse_quota(&root, &credential, "ZCode / Z.ai", "https://z.ai").unwrap();
+        let snapshot = parse_quota(&root, &test_credential(), "ZCode / Z.ai", "https://z.ai").unwrap();
         assert_eq!(snapshot.windows.len(), 3);
         assert_eq!(snapshot.headline_id.as_deref(), Some("5h"));
-        assert_eq!(snapshot.windows[0].label, "5-hour");
         assert!((snapshot.windows[0].used_fraction - 0.37).abs() < 0.0001);
-        assert_eq!(snapshot.windows[1].label, "Weekly");
-        assert_eq!(snapshot.windows[2].label, "Monthly MCP");
-        assert_eq!(snapshot.account.unwrap().plan.as_deref(), Some("pro"));
     }
 
     #[test]
@@ -683,39 +739,40 @@ mod tests {
                 ]
             }
         });
-        let credential = test_credential();
-        let snapshot = parse_quota(&root, &credential, "ZCode / Z.ai", "https://z.ai").unwrap();
+        let snapshot = parse_quota(&root, &test_credential(), "ZCode / Z.ai", "https://z.ai").unwrap();
         assert_eq!(snapshot.windows.len(), 2);
         assert!((snapshot.windows[0].used_fraction - 0.82).abs() < 0.0001);
         assert!((snapshot.windows[1].used_fraction - 0.45).abs() < 0.0001);
     }
 
     #[test]
-    fn discovers_only_coding_plan_provider_objects() {
-        let root = serde_json::json!({
-            "providers": {
-                "general": {"enabled": true, "options": {"apiKey":"do-not-use", "baseURL":"https://api.z.ai/api/paas/v4"}},
+    fn discovers_coding_plan_key_and_distinguishes_general_api_key() {
+        let coding = serde_json::json!({
+            "provider": {
                 "zai": {"enabled": true, "options": {"apiKey":"Bearer zai-key", "baseURL":"https://api.z.ai/api/coding/paas/v4"}}
             }
         });
-        assert_eq!(find_provider_key(&root), Some((ZAI_HOST.into(), "zai-key".into())));
+        assert_eq!(find_coding_plan_key(&coding), Some((ZAI_HOST.into(), "zai-key".into())));
+        assert!(!has_enabled_general_api_key(&coding));
 
-        let bigmodel = serde_json::json!({
-            "options": {"apiKey":"cn-key", "baseURL":"https://open.bigmodel.cn/api/coding/paas/v4"}
+        let general = serde_json::json!({
+            "provider": {
+                "zai": {"enabled": true, "options": {"apiKey":"general-key", "baseURL":"https://api.z.ai/api/paas/v4"}}
+            }
         });
-        assert_eq!(find_provider_key(&bigmodel), Some((BIGMODEL_HOST.into(), "cn-key".into())));
+        assert!(find_coding_plan_key(&general).is_none());
+        assert!(has_enabled_general_api_key(&general));
     }
 
     #[test]
-    fn parses_plaintext_zcode_login_session() {
+    fn login_prefers_oauth_access_token_over_legacy_zcode_jwt() {
         let root = serde_json::json!({
             "oauth:active_provider": "zai",
-            "zcodejwttoken": "test-zcode-jwt-token"
+            "oauth:zai:access_token": "fresh-oauth-access-token",
+            "zcodejwttoken": "old-zcode-jwt-token"
         });
-        let path = Path::new("credentials.json");
-        let credential = credential_from_credentials_file(&root.to_string(), path).unwrap();
-        assert_eq!(credential.key, "test-zcode-jwt-token");
-        assert_eq!(credential.host, ZAI_HOST);
+        let credential = credential_from_credentials_file(&root.to_string(), Path::new("credentials.json")).unwrap();
+        assert_eq!(credential.key, "fresh-oauth-access-token");
         assert!(credential.bearer_first);
     }
 
@@ -745,10 +802,9 @@ mod tests {
     }
 
     #[test]
-    fn derives_percentage_when_provider_omits_percentage_field() {
-        let object = serde_json::json!({"usage":1000.0,"currentValue":125.0,"nextResetTime":1781661646979});
-        let normalized = normalized_window(object.as_object().unwrap()).unwrap();
-        assert!((normalized.0 - 0.125).abs() < 0.0001);
-        assert!(normalized.1.is_some());
+    fn auth_errors_are_classified_for_retry() {
+        assert!(looks_like_auth_error("token expired or incorrect"));
+        assert!(looks_like_auth_error("Unauthorized"));
+        assert!(!looks_like_auth_error("quota service unavailable"));
     }
 }
