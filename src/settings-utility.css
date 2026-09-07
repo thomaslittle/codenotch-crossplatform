@@ -1,0 +1,150 @@
+/* Global utility lane for the Settings control.
+   Provider shells own only provider visualization; Settings is a sibling utility
+   that floats beside the shell in the trailing layout reserve. Loaded last so
+   no individual shell can accidentally absorb the cog into its chrome. */
+
+.notch-shell {
+  --utility-slot: 48px;
+  --utility-gap: 10px;
+}
+
+/* One global Settings treatment across every shell. */
+.settings-orb {
+  width: 32px !important;
+  height: 32px !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  color: var(--text) !important;
+}
+.settings-orb::before {
+  display: none !important;
+  content: none !important;
+}
+.settings-orb .orb-cog {
+  width: 15px !important;
+  height: 15px !important;
+  opacity: .58 !important;
+  transform: none !important;
+}
+.settings-orb.peek .orb-cog {
+  width: 16px !important;
+  height: 16px !important;
+  opacity: .78 !important;
+  transform: none !important;
+}
+.settings-orb:hover,
+.settings-orb:focus-visible {
+  background: color-mix(in srgb, var(--text) 9%, transparent) !important;
+}
+.settings-orb:hover .orb-cog,
+.settings-orb:focus-visible .orb-cog {
+  width: 18px !important;
+  height: 18px !important;
+  opacity: 1 !important;
+  transform: rotate(24deg) !important;
+}
+
+/* Horizontal docks/notches: Settings occupies the far-right utility lane. */
+.edge-top .settings-orb,
+.edge-bottom .settings-orb {
+  right: 6px !important;
+  left: auto !important;
+  top: 50% !important;
+  bottom: auto !important;
+  transform: translateY(-50%) !important;
+}
+
+/* Side docks/notches: Settings occupies the bottom utility lane. */
+.edge-left .settings-orb,
+.edge-right .settings-orb {
+  left: 50% !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: 6px !important;
+  transform: translateX(-50%) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Shared-body shells stop before the utility lane.
+   Provider stacks already reserve this trailing space, so this changes only
+   the visible chrome — provider centers and tooltip anchors stay untouched.
+   -------------------------------------------------------------------------- */
+
+/* Tab: trim the body and suppress only the trailing curl under Settings. */
+html[data-shell="tab"] .edge-top::before,
+html[data-shell="tab"] .edge-bottom::before {
+  right: var(--utility-slot) !important;
+}
+html[data-shell="tab"] .edge-left::before,
+html[data-shell="tab"] .edge-right::before {
+  bottom: var(--utility-slot) !important;
+}
+html[data-shell="tab"] .edge-top::after,
+html[data-shell="tab"] .edge-bottom::after {
+  clip-path: inset(0 var(--utility-slot) 0 0) !important;
+}
+html[data-shell="tab"] .edge-left::after,
+html[data-shell="tab"] .edge-right::after {
+  clip-path: inset(0 0 var(--utility-slot) 0) !important;
+}
+
+/* Sharp / Trapezoid / Pill: the silhouette wraps providers only. */
+html[data-shell="sharp"] .edge-top::before,
+html[data-shell="sharp"] .edge-bottom::before,
+html[data-shell="trapezoid"] .edge-top::before,
+html[data-shell="trapezoid"] .edge-bottom::before,
+html[data-shell="pill"] .edge-top::before,
+html[data-shell="pill"] .edge-bottom::before {
+  right: var(--utility-slot) !important;
+}
+html[data-shell="sharp"] .edge-left::before,
+html[data-shell="sharp"] .edge-right::before,
+html[data-shell="trapezoid"] .edge-left::before,
+html[data-shell="trapezoid"] .edge-right::before,
+html[data-shell="pill"] .edge-left::before,
+html[data-shell="pill"] .edge-right::before {
+  bottom: var(--utility-slot) !important;
+}
+
+/* Glass Dock: shelf/glass ends before the floating gear. */
+html[data-shell="dock"] .edge-top::before,
+html[data-shell="dock"] .edge-bottom::before {
+  right: var(--utility-slot) !important;
+}
+html[data-shell="dock"] .edge-left::before,
+html[data-shell="dock"] .edge-right::before {
+  bottom: var(--utility-slot) !important;
+}
+
+/* 3D Dock: both top plane and metallic lip stop before Settings. */
+html[data-shell="dock3d"] .edge-top::before,
+html[data-shell="dock3d"] .edge-top::after,
+html[data-shell="dock3d"] .edge-bottom::before,
+html[data-shell="dock3d"] .edge-bottom::after {
+  right: var(--utility-slot) !important;
+}
+html[data-shell="dock3d"] .edge-left::before,
+html[data-shell="dock3d"] .edge-left::after,
+html[data-shell="dock3d"] .edge-right::before,
+html[data-shell="dock3d"] .edge-right::after {
+  bottom: var(--utility-slot) !important;
+}
+
+/* Bubble and Ghost already have no shared body; make sure the global utility
+   control never inherits their per-widget/background-strength treatment. */
+html[data-shell="bubble"] .settings-orb,
+html[data-shell="ghost"] .settings-orb,
+html[data-shell="dock"] .settings-orb,
+html[data-shell="dock3d"] .settings-orb,
+html[data-shell="sharp"] .settings-orb,
+html[data-shell="trapezoid"] .settings-orb,
+html[data-shell="pill"] .settings-orb,
+html[data-shell="tab"] .settings-orb {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
