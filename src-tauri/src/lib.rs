@@ -110,7 +110,18 @@ fn show_context_menu(app: tauri::AppHandle, edge: Edge, scale: f64) -> Result<()
 
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
-    const ALLOWED: [&str; 6] = ["https://claude.ai/", "https://cursor.com/", "https://chatgpt.com/", "https://antigravity.google/", "https://opencode.ai/", "https://github.com/thomaslittle/codenotch-crossplatform"];
+    const ALLOWED: [&str; 10] = [
+        "https://claude.ai/",
+        "https://cursor.com/",
+        "https://chatgpt.com/",
+        "https://antigravity.google/",
+        "https://opencode.ai/",
+        "https://openrouter.ai/",
+        "https://grok.com/",
+        "https://z.ai/",
+        "https://bigmodel.cn/",
+        "https://github.com/thomaslittle/codenotch-crossplatform",
+    ];
     if !ALLOWED.iter().any(|prefix| url.starts_with(prefix)) {
         return Err("URL is not an allowed provider destination".into());
     }
