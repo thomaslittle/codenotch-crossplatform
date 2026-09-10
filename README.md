@@ -31,7 +31,7 @@ This is **MIT licensed and free forever** — use it, fork it, rip pieces out of
 
 ## What we added on top
 
-We got creative with the original idea and kept building: a fifth provider (**OpenCode Zen**), a full theming engine (**dark / light / system** plus any custom surface color with auto-contrast text), notch **opacity**, **scaling**, screen-edge **nudges** with per-monitor placement, opt-in **auto-hide** with a configurable idle delay and hover-to-peek edge sliver, springy motion throughout, an in-app **update checker**, a dev mode that reads your real local usage (never demo numbers), and honest `stale`/`needsAuth` statuses instead of invented percentages. If you think of more customization, open a PR.
+We got creative with the original idea and kept building: four more providers on top of upstream's set (**OpenCode Zen**, plus **GitHub Copilot**, **GLM/Z.ai**, **Grok**, and local **Ollama** ported from upstream v1.4–v1.8), per-profile rings for extra Claude/Codex logins, a full theming engine (**dark / light / system** plus any custom surface color with auto-contrast text), notch **opacity**, **scaling**, screen-edge **nudges** with per-monitor placement, opt-in **auto-hide** with a configurable idle delay and hover-to-peek edge sliver, springy motion throughout, an in-app **update checker**, a dev mode that reads your real local usage (never demo numbers), and honest `stale`/`needsAuth` statuses instead of invented percentages. If you think of more customization, open a PR.
 
 ## What is implemented
 
@@ -41,7 +41,8 @@ We got creative with the original idea and kept building: a fifth provider (**Op
 - Optional **auto-hide** (off by default): after a configurable idle delay the notch retracts to a small edge sliver; moving the cursor back to that edge peeks it out again. The hidden window becomes click-through so it does not block the app underneath.
 - Separate notch, tooltip, context-menu, and settings windows so transparent desktop areas do not swallow pointer input.
 - Always-on-top, frameless, taskbar-hidden notch behavior.
-- Provider adapters for **Claude Code, Cursor, Codex, Antigravity, and OpenCode Zen**.
+- Provider adapters for **Claude Code, Cursor, Codex, Antigravity, OpenCode Zen, GitHub Copilot, GLM (Z.ai), Grok, and local Ollama**.
+- Claude Code and Codex each get a **separate ring per local profile** (`~/.claude-<slug>`, `~/.codex-<slug>`), default first then alphabetical.
 - Themeable notch: **dark / light / system** modes plus any custom surface color (text auto-contrasts), adjustable opacity, springy motion throughout, and honest statuses instead of invented numbers.
 - Hover detail card with your real limit windows and reset times; the pointer is part of the card so it never seams or flashes.
 - Settings panel that sizes itself to fit its content (never scrolls, never clips) and drags by its header; one-click reset to defaults.
@@ -59,7 +60,7 @@ Usage is read locally from the most recently modified `rollout-*.jsonl` under:
 - Linux: `~/.codex/sessions/...`
 - `CODEX_HOME` is respected when set.
 
-The adapter uses Codex's own recorded `rate_limits` snapshots, including primary and secondary windows. `~/.codex/auth.json` is read only for the account label/plan; it is not needed to read usage.
+The adapter uses Codex's own recorded `rate_limits` snapshots, including primary, secondary, and the 30-day monthly window on free plans (classified by duration, not wire slot, so free-plan accounts never read as "nothing metered"). `~/.codex/auth.json` is read only for the account label/plan; it is not needed to read usage. Each used `~/.codex-<slug>` directory adds a **Codex (slug)** ring with its own limits and activity.
 
 ### Cursor
 
@@ -68,11 +69,11 @@ The adapter opens Cursor's VS Code-style global state database **read-only** and
 - Windows: `%APPDATA%\\Cursor\\User\\globalStorage\\state.vscdb`
 - Linux: `${XDG_CONFIG_HOME:-~/.config}/Cursor/User/globalStorage/state.vscdb`
 
-It then requests Cursor's `/api/usage-summary` and renders the included-usage percentage and any additional metered windows.
+It then requests Cursor's `/api/usage-summary`. The ring follows **Auto usage** (Cursor Models) when reported — never the blended total — plus API usage and on-demand buckets, resetting at billing-cycle end. Enterprise/team plans, which report a hard `overall` ceiling instead of percentages, are read from `used`/`limit`. Nothing to sign into: it borrows the editor's session, so there is only ever one account.
 
 ### Claude Code
 
-On Windows/Linux, the adapter looks for Claude Code's file-based credential at `.credentials.json` under the Claude configuration directory. It respects `CLAUDE_SECURESTORAGE_CONFIG_DIR` and `CLAUDE_CONFIG_DIR`, then falls back to `~/.claude/.credentials.json`.
+On Windows/Linux, the adapter looks for Claude Code's file-based credential at `.credentials.json` under the Claude configuration directory. It respects `CLAUDE_SECURESTORAGE_CONFIG_DIR` and `CLAUDE_CONFIG_DIR`, then falls back to `~/.claude/.credentials.json`. Any used `~/.claude-<slug>` directory adds a **Claude (slug)** ring with its own limits, sessions, and Settings row.
 
 The credential is **read only**. Codenotch does not refresh or rewrite Claude's login. It asks Anthropic's OAuth usage endpoint for the same style of session/weekly usage windows and degrades to `needsAuth`, `stale`, or `error` instead of fabricating a percentage.
 
@@ -85,6 +86,22 @@ It first asks Google for a real quota summary. If the account is not licensed fo
 ### OpenCode Zen
 
 The adapter reads the Zen API key OpenCode stores after `/connect` (`~/.local/share/opencode/auth.json`, `opencode` entry) and polls `GET https://opencode.ai/zen/go/v1/usage` for rolling/weekly/monthly windows. The key is sent only to `opencode.ai` and never to the frontend.
+
+### GitHub Copilot
+
+The adapter borrows the `gh` CLI session — `GH_TOKEN`/`GITHUB_TOKEN` first, then `hosts.yml` (`%APPDATA%\GitHub CLI\hosts.yml` on Windows, `~/.config/gh/hosts.yml` on Linux), then `gh auth token` — and reads `GET https://api.github.com/copilot_internal/user` for premium/chat/completion quota snapshots. The ring follows premium requests.
+
+### GLM (Z.ai Coding Plan)
+
+The adapter borrows a Z.ai key from whichever coding tool already holds one — Claude Code's `~/.claude/settings.json` (only when its base URL is a Z.ai host), ZCode's `~/.zcode/v2/config.json` plan entry or plaintext `credentials.json` token, or OpenCode's `auth.json` Z.ai provider entries — and polls the key's own console (`api.z.ai` or `open.bigmodel.cn`) at `GET /api/monitor/usage/quota/limit`. The key is sent raw (no `Bearer` prefix) as the monitor requires, and only to Z.ai.
+
+### Grok
+
+The adapter reads the Grok CLI session in `~/.grok/auth.json` (xAI-issued entries only; customer-IdP tokens are never sent to the public endpoint) and polls `GET https://cli-chat-proxy.grok.com/v1/billing?format=credits` for the weekly Grok Build allowance. The session is read only; `grok login` owns refreshing it.
+
+### Ollama (Local)
+
+Local models are detected automatically from the loopback Ollama server (`http://127.0.0.1:11434`, `OLLAMA_HOST` override honoured only for loopback hosts). Each loaded model gets its own window with size, quantization, and unload time; the cell shows the model count. Monitoring never initiates inference or saves prompts. When the server is unreachable the provider reports `unsupported` rather than inventing numbers.
 
 ## Linux windowing note
 

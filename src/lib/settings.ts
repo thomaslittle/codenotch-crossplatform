@@ -5,7 +5,7 @@ const STORAGE_KEY = "codenotch-crossplatform.settings.v1";
 
 export const DEFAULT_SETTINGS: ClientSettings = {
   edge: "right",
-  enabledProviders: ["claude", "cursor", "codex", "gemini", "opencode"],
+  enabledProviders: ["claude", "cursor", "codex", "gemini", "opencode", "copilot", "glm", "grok", "ollama"],
   theme: "custom",
   shellStyle: "tab",
   gaugeStyle: "classic",
