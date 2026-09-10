@@ -15,7 +15,57 @@ const MANAGE_URL: &str = "https://claude.ai/settings/usage";
 const CLAUDE_USAGE_USER_AGENT: &str = "claude-code/2.1.34";
 
 pub async fn snapshot() -> ProviderSnapshot {
-    let credential_path = credential_path();
+    snapshot_for(&credential_path(), "claude", "Claude").await
+}
+
+/// One snapshot per discovered Claude Code profile: the default `~/.claude`
+/// ring plus a `Claude (slug)` ring for every used `~/.claude-<slug>`
+/// directory. Default first, the rest alphabetical, so rings never swap
+/// places. Mirrors upstream multi-account support (`CLAUDE_CONFIG_DIR`).
+pub async fn snapshots() -> Vec<ProviderSnapshot> {
+    // An explicit config-dir override means exactly one profile by choice.
+    if std::env::var_os("CLAUDE_SECURESTORAGE_CONFIG_DIR").is_some()
+        || std::env::var_os("CLAUDE_CONFIG_DIR").is_some()
+    {
+        return vec![snapshot().await];
+    }
+    let mut out = vec![snapshot().await];
+    for (id, display_name, dir) in extra_profiles() {
+        // Skip unreadable profiles quietly: a half-written second login must
+        // not blank the default ring, and `needsAuth` for a profile the user
+        // never finished signing into is noise. Only surface it when the
+        // credential file exists but is unusable.
+        if !dir.join(".credentials.json").exists() {
+            continue;
+        }
+        out.push(snapshot_for(&dir.join(".credentials.json"), &id, &display_name).await);
+    }
+    out
+}
+
+/// `~/.claude-<slug>` directories Claude Code has run against (have a
+/// `.credentials.json` or a `projects` dir), alphabetical by slug.
+fn extra_profiles() -> Vec<(String, String, PathBuf)> {
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    let Ok(entries) = std::fs::read_dir(&home) else { return Vec::new() };
+    let mut slugs: Vec<String> = entries
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false))
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter(|name| name.starts_with(".claude-") && name.len() > ".claude-".len())
+        .map(|name| name.trim_start_matches(".claude-").to_owned())
+        .collect();
+    slugs.sort();
+    slugs
+        .into_iter()
+        .map(|slug| {
+            let dir = home.join(format!(".claude-{slug}"));
+            (format!("claude-{slug}"), format!("Claude ({slug})"), dir)
+        })
+        .collect()
+}
+
+async fn snapshot_for(credential_path: &Path, id: &str, display_name: &str) -> ProviderSnapshot {
     let credential = match read_credential(&credential_path) {
         Ok(value) => value,
         Err(message) => return ProviderSnapshot::unavailable(
@@ -24,7 +74,7 @@ pub async fn snapshot() -> ProviderSnapshot {
     };
     if credential.expires_at <= Utc::now() {
         return ProviderSnapshot::unavailable(
-            "claude", "Claude", "✳", "stale",
+            id, display_name, "✳", "stale",
             "Claude Code's OAuth credential is expired. Run Claude Code once so it can refresh its own login.",
             MANAGE_URL,
             Some(ProviderAccount { label: None, plan: credential.subscription_type.clone(), source: Some("Claude Code".into()) }),
@@ -33,7 +83,7 @@ pub async fn snapshot() -> ProviderSnapshot {
 
     let client = match reqwest::Client::builder().timeout(Duration::from_secs(15)).build() {
         Ok(client) => client,
-        Err(error) => return ProviderSnapshot::unavailable("claude", "Claude", "✳", "error", error.to_string(), MANAGE_URL, None),
+        Err(error) => return ProviderSnapshot::unavailable(id, display_name, "✳", "error", error.to_string(), MANAGE_URL, None),
     };
     let beta = HeaderName::from_static("anthropic-beta");
     let response = match client.get(ENDPOINT)
@@ -44,29 +94,29 @@ pub async fn snapshot() -> ProviderSnapshot {
         .send().await
     {
         Ok(response) => response,
-        Err(error) => return ProviderSnapshot::unavailable("claude", "Claude", "✳", "error", format!("Claude usage request failed: {error}"), MANAGE_URL, None),
+        Err(error) => return ProviderSnapshot::unavailable(id, display_name, "✳", "error", format!("Claude usage request failed: {error}"), MANAGE_URL, None),
     };
     if matches!(response.status().as_u16(), 401 | 403) {
-        return ProviderSnapshot::unavailable("claude", "Claude", "✳", "needsAuth", "Claude rejected the saved Claude Code login. Run Claude Code and sign in again.", MANAGE_URL, None);
+        return ProviderSnapshot::unavailable(id, display_name, "✳", "needsAuth", "Claude rejected the saved Claude Code login. Run Claude Code and sign in again.", MANAGE_URL, None);
     }
     if response.status().as_u16() == 429 {
-        return ProviderSnapshot::unavailable("claude", "Claude", "✳", "stale", "Claude usage is temporarily rate limited. Codenotch is backing off and will keep the last successful reading visible until the next safe retry.", MANAGE_URL, None);
+        return ProviderSnapshot::unavailable(id, display_name, "✳", "stale", "Claude usage is temporarily rate limited. Codenotch is backing off and will keep the last successful reading visible until the next safe retry.", MANAGE_URL, None);
     }
     if !response.status().is_success() {
         let status = response.status();
-        return ProviderSnapshot::unavailable("claude", "Claude", "✳", "error", format!("Claude usage endpoint returned {status}"), MANAGE_URL, None);
+        return ProviderSnapshot::unavailable(id, display_name, "✳", "error", format!("Claude usage endpoint returned {status}"), MANAGE_URL, None);
     }
     match response.json::<Value>().await {
         Ok(body) => match parse_usage(&body) {
             Ok(windows) => ProviderSnapshot {
-                id: "claude".into(), display_name: "Claude".into(), glyph: "✳".into(), fidelity: "official".into(), status: "ok".into(),
+                id: id.into(), display_name: display_name.into(), glyph: "✳".into(), fidelity: "official".into(), status: "ok".into(),
                 windows, headline_id: Some("session".into()), fetched_at: Utc::now(), message: None,
                 account: Some(ProviderAccount { label: None, plan: credential.subscription_type, source: Some("Claude Code".into()) }),
-                manage_url: Some(MANAGE_URL.into()), display_value: None, activity: claude_activity(),
+                manage_url: Some(MANAGE_URL.into()), display_value: None, activity: activity_for_profile(credential_path),
             },
-            Err(message) => ProviderSnapshot::unavailable("claude", "Claude", "✳", "error", message, MANAGE_URL, None),
+            Err(message) => ProviderSnapshot::unavailable(id, display_name, "✳", "error", message, MANAGE_URL, None),
         },
-        Err(error) => ProviderSnapshot::unavailable("claude", "Claude", "✳", "error", format!("Could not parse Claude usage: {error}"), MANAGE_URL, None),
+        Err(error) => ProviderSnapshot::unavailable(id, display_name, "✳", "error", format!("Could not parse Claude usage: {error}"), MANAGE_URL, None),
     }
 }
 
@@ -171,8 +221,14 @@ fn label(kind: &str) -> String {
     }
 }
 
-fn claude_activity() -> Option<ActivitySummary> {
-    let projects = config_dir().join("projects");
+/// Activity for one profile's `projects` dir, derived from its own
+/// `.credentials.json` path so each ring spins from its own sessions.
+fn activity_for_profile(credential_path: &Path) -> Option<ActivitySummary> {
+    let projects = credential_path.parent().map(|parent| parent.join("projects"))?;
+    activity_in(&projects)
+}
+
+fn activity_in(projects: &Path) -> Option<ActivitySummary> {
     let newest = WalkDir::new(projects).max_depth(5).into_iter().filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_file() && entry.path().extension().is_some_and(|ext| ext == "jsonl"))
         .filter_map(|entry| entry.metadata().ok()?.modified().ok()).max()?;

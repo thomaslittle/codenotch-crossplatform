@@ -101,15 +101,15 @@ button { -webkit-tap-highlight-color: transparent; }
   inset: var(--curl) 0;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 31px;
-  padding: 26px 11px 19px;
+  gap: 16px;
+  padding: 20px 11px 16px;
 }
 .edge-top .provider-stack, .edge-bottom .provider-stack {
   inset: 0 var(--curl);
   flex-direction: row;
   justify-content: flex-start;
-  gap: 31px;
-  padding: 7px 19px 8px 26px;
+  gap: 16px;
+  padding: 7px 16px 8px 20px;
 }
 
 .provider-cell {
@@ -122,7 +122,7 @@ button { -webkit-tap-highlight-color: transparent; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 9px;
+  gap: 6px;
   cursor: pointer;
   outline: none;
   will-change: transform;
@@ -139,19 +139,19 @@ button { -webkit-tap-highlight-color: transparent; }
 .provider-glyph svg { display: block; width: auto; height: auto; transform: none; }
 .activity-spinner { stroke: var(--text); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 21 65; opacity: .9; animation: spin 1.1s linear infinite; }
 .activity-waiting { stroke: #ffad33; stroke-width: 1.5; animation: pulse 900ms ease-in-out infinite alternate; }
-.provider-percent { color: var(--text); font-size: 14px; line-height: 17px; font-weight: 650; letter-spacing: -.25px; }
+.provider-percent { color: var(--text); font-size: 13px; line-height: 20px; font-weight: 600; letter-spacing: -.25px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { to { opacity: .3; } }
 
 .settings-orb {
   position: absolute;
   z-index: 2;
-  border: 0;
+  border: 1px solid var(--row-border);
   width: 47px;
   height: 47px;
   border-radius: 50%;
   color: var(--text);
-  background: transparent;
+  background: color-mix(in srgb, var(--black) 78%, transparent);
   display: grid;
   place-items: center;
   cursor: pointer;

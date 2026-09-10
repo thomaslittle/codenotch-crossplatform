@@ -11,7 +11,50 @@ const ENDPOINT: &str = "https://chatgpt.com/backend-api/wham/usage";
 const MANAGE_URL: &str = "https://chatgpt.com/#settings/Account";
 
 pub async fn snapshot() -> ProviderSnapshot {
-    let root = codex_home();
+    snapshot_for(&codex_home(), "codex", "Codex").await
+}
+
+/// One snapshot per discovered Codex profile: the default `~/.codex` ring
+/// plus a `Codex (slug)` ring for every used `~/.codex-<slug>` directory.
+/// Default first, the rest alphabetical, so rings never swap places. Mirrors
+/// upstream multi-account support (`CODEX_HOME`).
+pub async fn snapshots() -> Vec<ProviderSnapshot> {
+    // An explicit home override means exactly one profile by choice.
+    if std::env::var_os("CODEX_HOME").is_some() {
+        return vec![snapshot().await];
+    }
+    let mut out = vec![snapshot().await];
+    for (id, display_name, home) in extra_profiles() {
+        if !home.join("auth.json").exists() && newest_rollout(&home.join("sessions")).is_none() {
+            continue;
+        }
+        out.push(snapshot_for(&home, &id, &display_name).await);
+    }
+    out
+}
+
+/// `~/.codex-<slug>` directories, alphabetical by slug.
+fn extra_profiles() -> Vec<(String, String, PathBuf)> {
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    let Ok(entries) = std::fs::read_dir(&home) else { return Vec::new() };
+    let mut slugs: Vec<String> = entries
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false))
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter(|name| name.starts_with(".codex-") && name.len() > ".codex-".len())
+        .map(|name| name.trim_start_matches(".codex-").to_owned())
+        .collect();
+    slugs.sort();
+    slugs
+        .into_iter()
+        .map(|slug| {
+            let home = home.join(format!(".codex-{slug}"));
+            (format!("codex-{slug}"), format!("Codex ({slug})"), home)
+        })
+        .collect()
+}
+
+async fn snapshot_for(root: &Path, id: &str, display_name: &str) -> ProviderSnapshot {
     let auth_path = root.join("auth.json");
     let mut account = account(&auth_path);
 
@@ -36,7 +79,7 @@ pub async fn snapshot() -> ProviderSnapshot {
             .or_else(|| windows.first())
             .map(|window| window.id.clone());
         return ProviderSnapshot {
-            id: "codex".into(), display_name: "Codex".into(), glyph: "✦".into(),
+            id: id.into(), display_name: display_name.into(), glyph: "✦".into(),
             fidelity: "official".into(), status: "ok".into(), windows,
             headline_id, fetched_at: Utc::now(), message: None, account,
             manage_url: Some(MANAGE_URL.into()), display_value: None, activity,
@@ -48,7 +91,7 @@ pub async fn snapshot() -> ProviderSnapshot {
     // itself to refresh it. Preserve the existing local fallback for those cases.
     let Some(file) = newest_rollout(&root.join("sessions")) else {
         return ProviderSnapshot::unavailable(
-            "codex", "Codex", "✦", "needsAuth",
+            id, display_name, "✦", "needsAuth",
             "No live Codex usage or rollout log is available. Run Codex and sign in with ChatGPT first.",
             MANAGE_URL, account,
         );
@@ -63,18 +106,18 @@ pub async fn snapshot() -> ProviderSnapshot {
                     .or_else(|| windows.first())
                     .map(|window| window.id.clone());
                 ProviderSnapshot {
-                    id: "codex".into(), display_name: "Codex".into(), glyph: "✦".into(),
+                    id: id.into(), display_name: display_name.into(), glyph: "✦".into(),
                     fidelity: "official".into(), status: "ok".into(), windows,
                     headline_id, fetched_at: recorded_at.unwrap_or_else(Utc::now),
                     message: None, account, manage_url: Some(MANAGE_URL.into()), display_value: None, activity,
                 }
             }
             Err(message) => ProviderSnapshot::unavailable(
-                "codex", "Codex", "✦", "error", message, MANAGE_URL, account,
+                id, display_name, "✦", "error", message, MANAGE_URL, account,
             ),
         },
         Err(error) => ProviderSnapshot::unavailable(
-            "codex", "Codex", "✦", "error", format!("Could not read Codex rollout: {error}"), MANAGE_URL, account,
+            id, display_name, "✦", "error", format!("Could not read Codex rollout: {error}"), MANAGE_URL, account,
         ),
     }
 }
@@ -214,6 +257,10 @@ fn classify_window_id(minutes: Option<f64>, fallback: &str) -> String {
     match minutes {
         Some(minutes) if (minutes - 300.0).abs() < 1.0 => "primary".into(),
         Some(minutes) if (minutes - 10080.0).abs() < 1.0 => "secondary".into(),
+        // Free-plan accounts meter a 30-day window instead of a weekly one;
+        // classifying it by duration (not wire slot) keeps it visible rather
+        // than silently falling through to "nothing metered".
+        Some(minutes) if (minutes - 43200.0).abs() < 2.0 => "monthly".into(),
         _ => fallback.into(),
     }
 }
@@ -222,7 +269,8 @@ fn sort_windows(windows: &mut [LimitWindow]) {
     windows.sort_by_key(|window| match window.id.as_str() {
         "primary" => 0,
         "secondary" => 1,
-        _ => 2,
+        "monthly" => 2,
+        _ => 3,
     });
 }
 
@@ -305,5 +353,20 @@ mod tests {
         assert!((windows[0].used_fraction - 1.0).abs() < 0.001);
         assert_eq!(windows[1].id, "secondary");
         assert!((windows[1].used_fraction - 0.32).abs() < 0.001);
+    }
+
+    #[test]
+    fn free_plan_monthly_window_stays_visible() {
+        let body = serde_json::json!({
+            "rate_limit": {
+                "primary_window": {"used_percent": 12.0, "limit_window_seconds": 18000},
+                "secondary_window": {"used_percent": 45.0, "limit_window_seconds": 2592000}
+            }
+        });
+        let windows = parse_live_usage(&body).unwrap();
+        assert_eq!(windows.len(), 2);
+        assert_eq!(windows[1].id, "monthly");
+        assert_eq!(windows[1].label, "Monthly limit");
+        assert!((windows[1].used_fraction - 0.45).abs() < 0.001);
     }
 }

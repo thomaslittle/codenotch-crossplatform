@@ -27,9 +27,9 @@ pub const SLIVER: f64 = 6.0;
 const CURL: f64 = 39.0;
 const CELL: f64 = 70.0;
 const HORIZONTAL_CELL: f64 = 48.0;
-const GAP: f64 = 31.0;
-const START_PAD: f64 = 26.0;
-const END_PAD: f64 = 19.0;
+const GAP: f64 = 16.0;
+const START_PAD: f64 = 20.0;
+const END_PAD: f64 = 16.0;
 const COMPACT_CELL: f64 = 44.0;
 const COMPACT_HORIZONTAL_CELL: f64 = 44.0;
 const COMPACT_GAP: f64 = 12.0;
@@ -611,7 +611,7 @@ mod tests {
     }
 
     #[test]
-    fn tab_geometry_is_unchanged() {
-        assert_eq!(horizontal_length(4, 1.0, false, ShellStyle::Tab), 408.0);
+    fn tab_geometry_is_tight() {
+        assert_eq!(horizontal_length(4, 1.0, false, ShellStyle::Tab), 354.0);
     }
 }

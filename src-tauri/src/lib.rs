@@ -110,7 +110,7 @@ fn show_context_menu(app: tauri::AppHandle, edge: Edge, scale: f64) -> Result<()
 
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
-    const ALLOWED: [&str; 6] = ["https://claude.ai/", "https://cursor.com/", "https://chatgpt.com/", "https://antigravity.google/", "https://opencode.ai/", "https://github.com/thomaslittle/codenotch-crossplatform"];
+    const ALLOWED: [&str; 11] = ["https://claude.ai/", "https://cursor.com/", "https://chatgpt.com/", "https://antigravity.google/", "https://opencode.ai/", "https://github.com/thomaslittle/codenotch-crossplatform", "https://github.com/settings/copilot", "https://z.ai/", "https://open.bigmodel.cn/", "https://grok.com/", "https://ollama.com"];
     if !ALLOWED.iter().any(|prefix| url.starts_with(prefix)) {
         return Err("URL is not an allowed provider destination".into());
     }
@@ -177,7 +177,7 @@ pub fn run() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_millis(120)).await;
-                let _ = windows::place_notch(&handle, Edge::Right, 5, 1.0, "primary", 0.0, 0.0, false, ShellStyle::Tab);
+                let _ = windows::place_notch(&handle, Edge::Right, 9, 1.0, "primary", 0.0, 0.0, false, ShellStyle::Tab);
             });
 
             // Claude writes local JSONL session files while a turn is active.
