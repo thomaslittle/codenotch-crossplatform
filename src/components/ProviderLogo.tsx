@@ -44,12 +44,21 @@ const OPTICAL_SCALE: Record<string, number> = {
   gemini: 1.0,
   antigravity: 1.0,
   opencode: 0.9,
+  copilot: 0.95,
+  glm: 1.0,
+  grok: 0.9,
+  ollama: 1.0,
 };
 
 function normalizeId(id: string): string {
   const key = id.trim().toLowerCase();
   if (key === "gemini" || key === "antigravity") return "antigravity";
-  if (key === "codex" || key === "openai") return "codex";
+  if (key === "codex" || key === "openai" || key.startsWith("codex-")) return "codex";
+  if (key === "claude" || key.startsWith("claude-")) return "claude";
+  if (key === "copilot" || key.startsWith("copilot")) return "copilot";
+  if (key === "glm") return "glm";
+  if (key === "grok") return "grok";
+  if (key === "ollama" || key.startsWith("ollama")) return "ollama";
   return key;
 }
 
@@ -93,6 +102,38 @@ function OpenCodeMark({ size }: { size: number }) {
   );
 }
 
+function CopilotMark({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55v-2.15c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.75.4-1.25.72-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.67.41.35.77 1.05.77 2.12v3.15c0 .3.21.67.8.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z" />
+    </svg>
+  );
+}
+
+function GlmMark({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 3 22 20H2Zm0 4.2L6.6 17.5h10.8Z" />
+    </svg>
+  );
+}
+
+function GrokMark({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+      <path d="M4 4l16 16M20 4L4 20" />
+    </svg>
+  );
+}
+
+function OllamaMark({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 1a11 11 0 1 0 0 22 11 11 0 0 0 0-22Zm0 4.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13Zm0 3.2a3.3 3.3 0 1 0 0 6.6 3.3 3.3 0 0 0 0-6.6Z" />
+    </svg>
+  );
+}
+
 export function ProviderLogo({ id, glyph, size = 15, label }: ProviderLogoProps) {
   const key = normalizeId(id);
   const scale = OPTICAL_SCALE[key] ?? 1;
@@ -104,6 +145,10 @@ export function ProviderLogo({ id, glyph, size = 15, label }: ProviderLogoProps)
   if (key === "cursor") return <CursorMark size={scaled} />;
   if (key === "antigravity") return <AntigravityMark size={scaled} />;
   if (key === "opencode") return <OpenCodeMark size={scaled} />;
+  if (key === "copilot") return <CopilotMark size={scaled} />;
+  if (key === "glm") return <GlmMark size={scaled} />;
+  if (key === "grok") return <GrokMark size={scaled} />;
+  if (key === "ollama") return <OllamaMark size={scaled} />;
 
   // Unknown provider: fall back to the backend glyph text so nothing renders blank.
   return (

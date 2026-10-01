@@ -386,10 +386,10 @@ export function SettingsView() {
 
       <motion.section className="settings-section source-note" {...rise} transition={{ duration: 0.25, delay: 0.22, ease: "easeOut" }}>
         <h2>How readings work</h2>
-        <p>Codex asks its local app server for live account limits and falls back to rollout logs. Cursor uses its local state database. Claude uses Claude Code&apos;s OAuth credential. OpenCode polls Go usage with your saved API key. Antigravity reads its OS-keyring login. This app never writes provider credentials.</p>
+        <p>Codex asks its local app server for live account limits and falls back to rollout logs, including the 30-day window on free plans. Cursor uses its local state database, leading with Auto usage and reading enterprise overall ceilings. Claude uses Claude Code&apos;s OAuth credential, with a separate ring per <code>~/.claude-&lt;slug&gt;</code> profile — just like Codex <code>~/.codex-&lt;slug&gt;</code> profiles. OpenCode polls Go usage with your saved API key. Antigravity reads its OS-keyring login. GitHub Copilot borrows the <code>gh</code> CLI session. GLM borrows a Z.ai key from Claude Code settings, ZCode, or OpenCode. Grok reads the Grok CLI session. Ollama lists local models only — no prompts ever leave the machine. This app never writes provider credentials.</p>
       </motion.section>
       <footer className="settings-footer">
-        <span>Windows + Linux clean-room port · v0.3.1</span>
+        <span>Windows + Linux clean-room port · v0.5.0</span>
         <span className="footer-links">
           <button type="button" className="reset-link" onClick={() => void openExternal(REPO_URL)}>GitHub</button>
           <button type="button" className="reset-link" onClick={() => update({ ...DEFAULT_SETTINGS })}>Reset to defaults</button>

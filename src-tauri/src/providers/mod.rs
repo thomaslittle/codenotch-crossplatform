@@ -1,7 +1,11 @@
 mod antigravity;
 mod claude;
 mod codex;
+mod copilot;
 mod cursor;
+mod glm;
+mod grok;
+mod ollama;
 mod opencode;
 
 use crate::model::{ActivitySummary, ProviderSnapshot};
@@ -53,29 +57,56 @@ impl Default for ProviderStore {
 
 impl ProviderStore {
     pub async fn snapshots(&self) -> Vec<ProviderSnapshot> {
-        let (claude, cursor, codex, antigravity, opencode) = tokio::join!(
-            self.claude_snapshot(),
-            cursor::snapshot(),
-            codex::snapshot(),
-            antigravity::snapshot(),
-            opencode::snapshot(),
-        );
-        vec![claude, cursor, codex, antigravity, opencode]
-            .into_iter()
-            .map(|snapshot| self.with_stale_fallback(snapshot))
-            .collect()
+        // Claude and Codex support multiple local profiles (`~/.claude-<slug>`,
+        // `~/.codex-<slug>`); every extra profile becomes its own ring with a
+        // stable id, default first then alphabetical, so rings never swap
+        // places. All other providers yield a single snapshot.
+        let (claude_profiles, codex_profiles, cursor, antigravity, opencode, copilot, glm, grok, ollama) =
+            tokio::join!(
+                claude::snapshots(),
+                codex::snapshots(),
+                cursor::snapshot(),
+                antigravity::snapshot(),
+                opencode::snapshot(),
+                copilot::snapshot(),
+                glm::snapshot(),
+                grok::snapshot(),
+                ollama::snapshot(),
+            );
+        // The default Claude ring keeps the refresh gate (3-minute cadence +
+        // persisted 429 back-off); extra profiles are independent accounts with
+        // their own tokens and fetch directly.
+        let mut all = Vec::new();
+        for snapshot in claude_profiles {
+            if snapshot.id == "claude" {
+                all.push(self.gated_claude_snapshot(snapshot).await);
+            } else {
+                all.push(snapshot);
+            }
+        }
+        all.push(cursor);
+        all.extend(codex_profiles);
+        all.push(antigravity);
+        all.push(opencode);
+        all.push(copilot);
+        all.push(glm);
+        all.push(grok);
+        all.push(ollama);
+        // Deduplicate defensively: profile discovery must never emit the same
+        // ring twice.
+        let mut seen = std::collections::HashSet::new();
+        all.retain(|snapshot| seen.insert(snapshot.id.clone()));
+        all.into_iter().map(|snapshot| self.with_stale_fallback(snapshot)).collect()
     }
 
-    async fn claude_snapshot(&self) -> ProviderSnapshot {
+    /// Applies the shared OAuth refresh gate to a pre-fetched default-profile
+    /// Claude snapshot: serves the last good reading when within the quiet
+    /// interval instead of hitting the network.
+    async fn gated_claude_snapshot(&self, fresh: ProviderSnapshot) -> ProviderSnapshot {
         let now = SystemTime::now();
         let (should_fetch, backing_off) = {
             let mut gate = self.claude_gate.lock().expect("claude refresh gate poisoned");
             if now >= gate.next_attempt {
-                // Claim the next network slot before awaiting so overlapping
-                // frontend refreshes cannot stampede the OAuth usage endpoint.
-                // Community testing of Claude's private usage endpoint shows
-                // the Claude-Code user-agent path is reliable at ~3 minute
-                // intervals, so keep our live reads at or below that cadence.
                 gate.next_attempt = now + CLAUDE_MIN_REFRESH;
                 (true, gate.rate_limited)
             } else {
@@ -92,17 +123,17 @@ impl ProviderStore {
                 }
                 return cached;
             }
+            return fresh;
         }
 
-        let snapshot = claude::snapshot().await;
-        let rate_limited = snapshot.status == "stale"
-            && snapshot.message.as_deref().is_some_and(|message| message.contains("rate limited"));
+        let rate_limited = fresh.status == "stale"
+            && fresh.message.as_deref().is_some_and(|message| message.contains("rate limited"));
         {
             let mut gate = self.claude_gate.lock().expect("claude refresh gate poisoned");
             if rate_limited {
                 gate.rate_limited = true;
                 gate.next_attempt = SystemTime::now() + CLAUDE_RATE_LIMIT_BACKOFF;
-            } else if snapshot.status == "ok" {
+            } else if fresh.status == "ok" {
                 gate.rate_limited = false;
                 gate.next_attempt = SystemTime::now() + CLAUDE_MIN_REFRESH;
             } else {
@@ -111,7 +142,7 @@ impl ProviderStore {
                 gate.next_attempt = SystemTime::now() + Duration::from_secs(60);
             }
         }
-        snapshot
+        fresh
     }
 
     fn cached(&self, id: &str) -> Option<ProviderSnapshot> {
@@ -133,7 +164,7 @@ impl ProviderStore {
             // reading. Never carry a cached `working` spinner forward just
             // because the live quota refresh failed. Claude's local activity
             // remains available even when its usage endpoint is unavailable.
-            stale.activity = if stale.id == "claude" {
+            stale.activity = if stale.id == "claude" || stale.id.starts_with("claude-") {
                 claude_activity()
             } else {
                 snapshot.activity

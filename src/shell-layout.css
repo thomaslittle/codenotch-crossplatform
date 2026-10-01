@@ -130,6 +130,14 @@ html[data-shell="ghost"] .provider-cell.is-compact {
   padding: 0 !important;
 }
 
+/* Bubble tiles carry their own padding + border inside the shared 70px cell
+    pitch: keep content (ring + gap + label) within budget so tiles never
+    overlap their neighbours. */
+html[data-shell="bubble"] .provider-cell:not(.is-compact) {
+  gap: 3px !important;
+  padding: 0 3px 1px !important;
+}
+
 /* Horizontal edges: noncompact circular/slim gauges reserve a 52px cell and
    compact gauges reserve 44px. End padding deliberately includes Settings. */
 html[data-shell="bubble"] .edge-top .provider-stack,
