@@ -3,7 +3,8 @@ use chrono::{DateTime, Utc};
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 /// GitHub Copilot quotas from GitHub's editor endpoint, borrowing the token
 /// from `GH_TOKEN`/`GITHUB_TOKEN`, `gh`'s hosts file, or `gh auth token`.
@@ -196,7 +197,26 @@ fn account() -> Option<ProviderAccount> {
     })
 }
 
+/// How long a `gh auth token` result (hit or miss) is reused. Snapshots are
+/// refreshed on every settings interaction, so without this each click would
+/// spawn `gh` again.
+const GH_TOKEN_TTL: Duration = Duration::from_secs(600);
+
+static GH_TOKEN_CACHE: Mutex<Option<(Instant, Option<String>)>> = Mutex::new(None);
+
 fn gh_token() -> Option<String> {
+    let mut cache = GH_TOKEN_CACHE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some((fetched_at, token)) = cache.as_ref() {
+        if fetched_at.elapsed() < GH_TOKEN_TTL {
+            return token.clone();
+        }
+    }
+    let token = fetch_gh_token();
+    *cache = Some((Instant::now(), token.clone()));
+    token
+}
+
+fn fetch_gh_token() -> Option<String> {
     let candidates = if cfg!(target_os = "windows") {
         vec!["gh.exe", "gh"]
     } else {
@@ -208,10 +228,17 @@ fn gh_token() -> Option<String> {
         ]
     };
     for candidate in candidates {
-        let output = std::process::Command::new(candidate)
-            .args(["auth", "token", "--hostname", "github.com"])
-            .output()
-            .ok()?;
+        let mut command = std::process::Command::new(candidate);
+        command.args(["auth", "token", "--hostname", "github.com"]);
+        // A GUI process has no console, so without this every `gh` call
+        // flashes a new console window on Windows.
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+        let output = command.output().ok()?;
         if !output.status.success() {
             continue;
         }
